@@ -205,3 +205,34 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Model artifacts (VERY IMPORTANT)
+model/
+*.bin
+*.safetensors
+*.pt
+*.ckpt
+
+# HuggingFace cache
+.cache/
+.huggingface/
+
+# Logs
+*.log
