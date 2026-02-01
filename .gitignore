@@ -236,3 +236,8 @@ model/
 
 # Logs
 *.log
+
+# Secrets
+.env
+.kaggle/
+kaggle.json
