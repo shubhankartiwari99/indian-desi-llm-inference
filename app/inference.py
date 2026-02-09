@@ -1552,6 +1552,12 @@ class InferenceEngine:
         intent = detect_intent(prompt)
         lang = detect_language(prompt)
         conditioned_prompt = self._prepare_prompt(prompt)
+        # Early family-theme latch: if the prompt contains family markers, latch
+        # the family theme for the session so subsequent emotional turns are
+        # always shaped (short-circuit relies on this flag).
+        prompt_lower_early = prompt.lower()
+        if any(m in prompt_lower_early for m in self.EMO_THEME_FAMILY):
+            self._family_theme_latched = True
         # Short-circuit: if a family theme has been latched for this session,
         # never call the model for emotional intent — always return a forced
         # emotional skeleton (B or C) deterministically.

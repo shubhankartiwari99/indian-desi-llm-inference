@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push: {}
+  pull_request: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt -q || true; fi
+
+      - name: Run unit test (family invariant)
+        run: |
+          python -c "from tests.test_family_theme_invariant import test_family_theme_never_calls_model; test_family_theme_never_calls_model(); print('UNIT_TEST_OK')"
+
+      - name: Run short eval
+        run: |
+          python run_b3_2_eval.py
+
+      - name: Verify results
+        run: |
+          python scripts/ci_verify_results.py /tmp/results_b3_2.json
