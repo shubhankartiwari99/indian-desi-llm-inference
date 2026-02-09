@@ -1,32 +1,27 @@
 from transformers import AutoModelForSeq2SeqLM
 from peft import get_peft_model
 from train.lora_config import LORA_CONFIG
-from typing import Callable, cast
 
-MODEL_NAME = "google/mt5-small"
+MODEL_NAME = "t5-base"
 
 def load_lora_model():
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        MODEL_NAME,
-        device_map="auto",
-    )
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
-    # Enable gradient checkpointing (memory-safe)
-    model.gradient_checkpointing_enable()
+    # model.gradient_checkpointing_enable()
 
-    # Apply LoRA
+    # ✅ Required for Trainer + seq2seq
+    model.config.use_cache = False
+
+    # ✅ Apply LoRA
     model = get_peft_model(model, LORA_CONFIG)
 
-    if hasattr(model, "enable_input_require_grads"):
-        enable_fn = cast(Callable[[], None], model.enable_input_require_grads)
-        enable_fn()
+    # ✅ REQUIRED: forces inputs to carry gradients
+    model.enable_input_require_grads()
 
+    # ✅ Training mode
     model.train()
 
-    # Disable cache (Trainer + checkpointing safe)
-    if hasattr(model.config, "use_cache"):
-        model.config.use_cache = False  # type: ignore[attr-defined]
-
+    # Sanity check (keep this)
     model.print_trainable_parameters()
 
     return model

@@ -9,7 +9,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-engine = InferenceEngine()
+engine = InferenceEngine("artifacts/alignment_lora/final")
 
 
 class GenerateRequest(BaseModel):
@@ -25,7 +25,7 @@ class GenerateResponse(BaseModel):
 def generate_text(request: GenerateRequest):
     try:
         output = engine.generate(
-            prompt=request.prompt,
+            request.prompt,
             max_new_tokens=request.max_new_tokens
         )
         return GenerateResponse(response=output)

@@ -1,37 +1,54 @@
-import torch
-from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from peft import PeftModel
+import torch
+from pathlib import Path
+import json
 
 
 class ModelLoader:
-    def __init__(self, model_dir=None, device=None, lora_dir=None):
-        if model_dir is None:
-            # DEFAULT MODEL LOCATION (repo-local)
-            self.model_dir = Path("model")
-        else:
-            self.model_dir = Path(model_dir)
+    def __init__(self, adapter_dir: str, base_model_name: str = None):
+        self.adapter_dir = Path(adapter_dir)
+        self.base_model_name = base_model_name or self._resolve_base_model_name()
 
-        if not self.model_dir.exists():
-            raise FileNotFoundError(
-                f"Model directory not found: {self.model_dir.resolve()}"
-            )
-
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.lora_dir = Path(lora_dir) if lora_dir else None
+    def _resolve_base_model_name(self):
+        adapter_config = self.adapter_dir / "adapter_config.json"
+        if adapter_config.exists():
+            try:
+                cfg = json.loads(adapter_config.read_text(encoding="utf-8"))
+                base = cfg.get("base_model_name_or_path")
+                if isinstance(base, str) and base.strip():
+                    return base
+            except Exception:
+                pass
+        # Default for new training runs.
+        return "google/flan-t5-small"
 
     def load(self):
-        tokenizer = AutoTokenizer.from_pretrained(
-            self.model_dir,
-            use_fast=False
+        # 1. Load base model
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(self.base_model_name)
+
+        # 2. Attach LoRA adapter
+        model = PeftModel.from_pretrained(
+            base_model,
+            self.adapter_dir,
         )
 
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            self.model_dir
-        ).to(self.device)
+        # 3. Load tokenizer from adapter dir (important).
+        # Prefer slow tokenizer for T5-family models.
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.adapter_dir,
+                use_fast=False,
+                legacy=True,
+            )
+        except TypeError:
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.adapter_dir,
+                use_fast=False,
+            )
 
-        if self.lora_dir and self.lora_dir.exists():
-            model = PeftModel.from_pretrained(model, self.lora_dir)
-
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
         model.eval()
-        return model, tokenizer, self.device
+
+        return model, tokenizer

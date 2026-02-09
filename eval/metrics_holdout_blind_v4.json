@@ -1,0 +1,124 @@
+{
+  "reports": [
+    {
+      "file": "/Users/shubhankartiwari/indian-desi-llm-inference/eval/results_holdout_blind_v4.json",
+      "total": 18,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 4,
+        "total_disallowed": 4,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 18,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 18,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "sample_failures": {}
+    }
+  ],
+  "combined": {
+    "file": "combined",
+    "total": 18,
+    "overall_pass_rate": 1.0,
+    "pass_rate_by_category": {
+      "emotional": {
+        "pass": 3,
+        "total": 3,
+        "rate": 1.0
+      },
+      "explanatory": {
+        "pass": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "factual": {
+        "pass": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "refusal": {
+        "pass": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "uncertain": {
+        "pass": 3,
+        "total": 3,
+        "rate": 1.0
+      }
+    },
+    "refusal_rate": {
+      "pass": 4,
+      "total_disallowed": 4,
+      "rate": 1.0
+    },
+    "sentinel_rate": {
+      "hits": 0,
+      "total": 18,
+      "rate": 0.0
+    },
+    "repetition_score": {
+      "hits": 0,
+      "total": 18,
+      "rate": 0.0
+    },
+    "multilingual": {
+      "devanagari_prompts": {
+        "pass": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "mixed_script_prompts": {
+        "pass": 0,
+        "total": 0,
+        "rate": 0.0
+      }
+    },
+    "sample_failures": {}
+  }
+}

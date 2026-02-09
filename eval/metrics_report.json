@@ -1,0 +1,844 @@
+{
+  "reports": [
+    {
+      "file": "eval/results_full.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 1,
+        "total_factual": 3,
+        "rate": 0.3333
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 1,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_adversarial.json",
+      "total": 30,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 6,
+          "total": 6,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 6,
+          "total": 6,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 6,
+          "total": 6,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 6,
+          "total": 6,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 6,
+          "total": 6,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 6,
+        "total_disallowed": 6,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 30,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 30,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 0,
+        "total_factual": 6,
+        "rate": 0.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 0,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind.json",
+      "total": 25,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 5,
+        "total_disallowed": 5,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 0,
+        "total_factual": 5,
+        "rate": 0.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 0,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v2.json",
+      "total": 25,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 5,
+        "total_disallowed": 5,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 0,
+        "total_factual": 5,
+        "rate": 0.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 0,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v3.json",
+      "total": 25,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 5,
+          "total": 5,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 5,
+        "total_disallowed": 5,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 25,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 0,
+        "total_factual": 5,
+        "rate": 0.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 0,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v4.json",
+      "total": 18,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 4,
+        "total_disallowed": 4,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 18,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 18,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 0,
+        "total_factual": 4,
+        "rate": 0.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 0,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v5.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 3,
+        "total_factual": 3,
+        "rate": 1.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 3,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v6.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 2,
+          "total": 2,
+          "rate": 1.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 3,
+        "total_factual": 3,
+        "rate": 1.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 3,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v7.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 0,
+          "total": 0,
+          "rate": 0.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 2,
+        "total_factual": 3,
+        "rate": 0.6667
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 2,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v8.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 2,
+          "total": 2,
+          "rate": 1.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 3,
+        "total_factual": 3,
+        "rate": 1.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 3,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    },
+    {
+      "file": "eval/results_holdout_blind_v9.json",
+      "total": 15,
+      "overall_pass_rate": 1.0,
+      "pass_rate_by_category": {
+        "emotional": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "explanatory": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "factual": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "refusal": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "uncertain": {
+          "pass": 3,
+          "total": 3,
+          "rate": 1.0
+        }
+      },
+      "refusal_rate": {
+        "pass": 3,
+        "total_disallowed": 3,
+        "rate": 1.0
+      },
+      "sentinel_rate": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "repetition_score": {
+        "hits": 0,
+        "total": 15,
+        "rate": 0.0
+      },
+      "multilingual": {
+        "devanagari_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "mixed_script_prompts": {
+          "pass": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "factual_floor_hit_rate": {
+        "hits": 3,
+        "total_factual": 3,
+        "rate": 1.0
+      },
+      "factual_wrong_rate": {
+        "wrong": 0,
+        "floor_hits": 3,
+        "rate": 0.0
+      },
+      "sample_failures": {}
+    }
+  ],
+  "combined": {
+    "file": "combined",
+    "total": 213,
+    "overall_pass_rate": 1.0,
+    "pass_rate_by_category": {
+      "emotional": {
+        "pass": 42,
+        "total": 42,
+        "rate": 1.0
+      },
+      "explanatory": {
+        "pass": 43,
+        "total": 43,
+        "rate": 1.0
+      },
+      "factual": {
+        "pass": 43,
+        "total": 43,
+        "rate": 1.0
+      },
+      "refusal": {
+        "pass": 43,
+        "total": 43,
+        "rate": 1.0
+      },
+      "uncertain": {
+        "pass": 42,
+        "total": 42,
+        "rate": 1.0
+      }
+    },
+    "refusal_rate": {
+      "pass": 43,
+      "total_disallowed": 43,
+      "rate": 1.0
+    },
+    "sentinel_rate": {
+      "hits": 0,
+      "total": 213,
+      "rate": 0.0
+    },
+    "repetition_score": {
+      "hits": 0,
+      "total": 213,
+      "rate": 0.0
+    },
+    "multilingual": {
+      "devanagari_prompts": {
+        "pass": 17,
+        "total": 17,
+        "rate": 1.0
+      },
+      "mixed_script_prompts": {
+        "pass": 7,
+        "total": 7,
+        "rate": 1.0
+      }
+    },
+    "factual_floor_hit_rate": {
+      "hits": 15,
+      "total_factual": 43,
+      "rate": 0.3488
+    },
+    "factual_wrong_rate": {
+      "wrong": 0,
+      "floor_hits": 15,
+      "rate": 0.0
+    },
+    "sample_failures": {}
+  }
+}

@@ -1,19 +1,26 @@
-def format_example(example):
-    """
-    Converts instruction + input into a single mT5 prompt.
-    """
+def format_example(example, tokenizer):
+    prompt = example["input_text"].strip()
+    response = example["target_text"].strip()
 
-    instruction = example["instruction"].strip()
-    user_input = example["input"].strip()
-    output = example["output"].strip()
+    # Build full text
+    full_text = prompt + "\nResponse: " + response
 
-    prompt = (
-        f"Instruction: {instruction}\n"
-        f"User: {user_input}\n"
-        f"Assistant:"
+    # Tokenize full sequence
+    tokenized = tokenizer(
+        full_text,
+        truncation=True,
+        max_length=512,
     )
 
-    return {
-        "input_text": prompt,
-        "target_text": output
-    }
+    # Tokenize prompt only (for masking)
+    prompt_ids = tokenizer(
+        prompt + "\nResponse:",
+        truncation=True,
+        max_length=512,
+    )["input_ids"]
+
+    labels = tokenized["input_ids"].copy()
+    labels[: len(prompt_ids)] = [-100] * len(prompt_ids)
+
+    tokenized["labels"] = labels
+    return tokenized
