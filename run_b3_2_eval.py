@@ -3,7 +3,7 @@ import sys
 import json
 
 # Ensure repo imports work (workspace root)
-REPO_ROOT = Path("/Users/shubhankartiwari/indian-desi-llm-inference").resolve()
+REPO_ROOT = Path(__file__).resolve().parent
 sys.path.append(str(REPO_ROOT))
 
 from app.inference import InferenceEngine
@@ -14,6 +14,8 @@ if not MODEL_DIR.exists():
 
 PROMPTS_PATH = REPO_ROOT / "eval" / "prompts_b3_1.json"
 OUT_PATH = Path("/tmp/results_b3_2.json")
+
+assert PROMPTS_PATH.exists(), f"Missing prompts file: {PROMPTS_PATH}"
 
 with open(PROMPTS_PATH, encoding="utf-8") as f:
     data = json.load(f)
