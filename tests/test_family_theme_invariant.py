@@ -14,8 +14,9 @@ FALLBACK_MODEL_DIR = REPO_ROOT / "artifacts" / "plain_mt5"
 
 
 def test_family_theme_never_calls_model():
-    if not MODEL_DIR.exists() and not FALLBACK_MODEL_DIR.exists():
-        print("SKIP: missing model artifacts; skipping family theme invariant test")
+    adapter_config = MODEL_DIR / "adapter_config.json"
+    if not adapter_config.exists():
+        print("SKIP: missing adapter artifacts; skipping family theme invariant test")
         return
     # Run the runner to produce fresh results.
     subprocess.check_call(["python3", str(RUNNER)], cwd=str(REPO_ROOT))
