@@ -30,9 +30,12 @@ class ModelLoader:
         # 1. Load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(self.base_model_name)
 
-        # 2. Attach LoRA adapter only when an adapter exists.
+        # 2. Attach LoRA adapter only when adapter artifacts exist.
         adapter_config = self.adapter_dir / "adapter_config.json"
-        if adapter_config.exists():
+        adapter_weights = self.adapter_dir / "adapter_model.safetensors"
+        adapter_weights_bin = self.adapter_dir / "adapter_model.bin"
+        has_adapter = adapter_config.is_file() and (adapter_weights.is_file() or adapter_weights_bin.is_file())
+        if has_adapter:
             model = PeftModel.from_pretrained(
                 base_model,
                 str(self.adapter_dir),
