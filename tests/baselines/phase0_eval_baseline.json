@@ -1,0 +1,270 @@
+{
+  "sequences": [
+    {
+      "id": "seq1_lost_repetition",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "I feel lost.",
+          "response": "That sounds really heavy. For now, let’s keep it small. You don’t have to fix everything immediately. If you want, tell me what’s been weighing on you the most.",
+          "meta": {
+            "source": "memory_exact",
+            "shaped": true,
+            "shape": "emotional_skeleton",
+            "emotional_skeleton": "A",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "Still feel lost. Nothing has changed.",
+          "response": "That sounds exhausting. It doesn’t mean you’re failing. It usually means you care and you’re stretched. For now, let’s keep it practical and small.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_theme": "lost",
+            "emotional_skeleton": "C",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "Same feeling. I don’t even know what I’m expecting anymore.",
+          "response": "I hear you. That sounds hard. It doesn’t mean you’re failing. It usually means you care and you’re stretched. For now, let’s keep it practical and small.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_theme": null,
+            "emotional_skeleton": "C",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 4,
+          "user": "Honestly feels pointless to even talk about it now.",
+          "response": "That sounds exhausting. It doesn’t mean you’re failing. It usually means you care and you’re stretched. For now, let’s keep it practical and small.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_skeleton": "C",
+            "emotional_lang": "en"
+          }
+        }
+      ]
+    },
+    {
+      "id": "seq2_anxiety_to_irritation",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "I’m anxious about my career.",
+          "response": "That sounds really heavy. Family and career pressure together can feel suffocating. For now, let’s keep it small. You don’t have to fix everything immediately. If you want, tell me what’s been weighing on you the most.",
+          "meta": {
+            "source": "model",
+            "shaped": true,
+            "shape": "emotional_skeleton",
+            "emotional_skeleton": "A",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "Everyone keeps saying “it’ll work out” but that just annoys me.",
+          "response": "Got it — I won’t push advice or fixes. That frustration makes sense. I’m here with you.",
+          "meta": {
+            "source": "pushback_ack",
+            "shaped": true,
+            "shape": "pushback_ack",
+            "emotional_skeleton": null
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "I’m tired of thinking. I just want this pressure to stop.",
+          "response": "That sounds overwhelming. Family and career pressure together can feel suffocating. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "emotional_skeleton": "B",
+            "emotional_lang": "en",
+            "escalation_active": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "seq3_minimal_replies",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "Feeling very low these days.",
+          "response": "That sounds really heavy. For now, let’s keep it small. You don’t have to fix everything immediately. If you want, tell me what’s been weighing on you the most.",
+          "meta": {
+            "source": "model",
+            "shaped": true,
+            "shape": "emotional_skeleton",
+            "emotional_skeleton": "A",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "hmm",
+          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "meta": {
+            "source": "model"
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "idk",
+          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "meta": {
+            "source": "model"
+          }
+        },
+        {
+          "turn_index": 4,
+          "user": "whatever",
+          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "meta": {
+            "source": "model"
+          }
+        }
+      ]
+    },
+    {
+      "id": "seq4_practical_pushback",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "I feel overwhelmed about career and money.",
+          "response": "That sounds like a lot all at once. Family and career pressure together can feel suffocating. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "model",
+            "shaped": true,
+            "shape": "emotional_skeleton",
+            "emotional_skeleton": "B",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "Please don’t give generic advice.",
+          "response": "I don’t want to give you a generic advice.",
+          "meta": {
+            "source": "model"
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "I don’t want exercises either.",
+          "response": "That sounds exhausting. It doesn’t mean you’re failing. It usually means you care and you’re stretched. For now, let’s keep it practical and small.",
+          "meta": {
+            "source": "parroting_block",
+            "shaped": true,
+            "shape": "parroting_block",
+            "emotional_skeleton": "C"
+          }
+        }
+      ]
+    },
+    {
+      "id": "seq5_indian_cultural_weight",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "Parents keep comparing me to others. It hurts more than I admit.",
+          "response": "That sounds like a lot all at once. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_skeleton": "B",
+            "emotional_lang": "en",
+            "emotional_theme": "family"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "I know they mean well, but it still feels heavy.",
+          "response": "That sounds overwhelming. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_skeleton": "B",
+            "emotional_lang": "en",
+            "emotional_theme": "family"
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "Makes me feel like I’m disappointing everyone.",
+          "response": "That sounds like a lot all at once. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_theme": "family",
+            "emotional_skeleton": "B",
+            "emotional_lang": "en"
+          }
+        }
+      ]
+    },
+    {
+      "id": "seq6_emotional_fatigue",
+      "turns": [
+        {
+          "turn_index": 1,
+          "user": "I’m just tired. Emotionally drained.",
+          "response": "That sounds really heavy. For now, let’s keep it small. You don’t have to fix everything immediately. If you want, tell me what’s been weighing on you the most.",
+          "meta": {
+            "source": "model",
+            "shaped": true,
+            "shape": "emotional_skeleton",
+            "emotional_skeleton": "A",
+            "emotional_lang": "en"
+          }
+        },
+        {
+          "turn_index": 2,
+          "user": "Same tiredness. Even resting doesn’t help.",
+          "response": "That sounds like a lot all at once. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "emotional_skeleton": "B",
+            "emotional_lang": "en",
+            "escalation_active": true
+          }
+        },
+        {
+          "turn_index": 3,
+          "user": "Feels like this is just how life is now.",
+          "response": "That sounds overwhelming. Right now, let’s slow this moment down. You don’t have to solve everything at once. If you want, tell me what feels heaviest right now.",
+          "meta": {
+            "source": "escalation_forced",
+            "shaped": true,
+            "shape": "emotional_escalation",
+            "escalation_active": true,
+            "emotional_skeleton": "B",
+            "emotional_lang": "en"
+          }
+        }
+      ]
+    }
+  ]
+}

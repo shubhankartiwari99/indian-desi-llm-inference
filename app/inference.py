@@ -8,6 +8,8 @@ from app.language import detect_language
 from app.policies import apply_response_policies, GENERIC_FALLBACK, REFUSAL_FALLBACK
 from app.utils import normalize_output
 from app.alignment_memory import AlignmentMemory
+from app.voice.state import SessionVoiceState
+from app.voice.rotation_memory import RotationMemory
 
 
 class InferenceEngine:
@@ -1389,6 +1391,10 @@ class InferenceEngine:
         # Session-level family theme latch: once a family theme is detected in-session,
         # keep it active for the remainder of the session and enforce shaping.
         self._family_theme_latched = False
+
+        self.voice_state = SessionVoiceState(
+            rotation_memory=RotationMemory()
+        )
     def _build_sentinel_blocklist(self):
         vocab = self.tokenizer.get_vocab()
         sentinel_ids = sorted(
