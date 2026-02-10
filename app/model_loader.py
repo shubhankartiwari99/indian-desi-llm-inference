@@ -30,20 +30,20 @@ class ModelLoader:
         # 2. Attach LoRA adapter
         model = PeftModel.from_pretrained(
             base_model,
-            self.adapter_dir,
+            str(self.adapter_dir),
         )
 
         # 3. Load tokenizer from adapter dir (important).
         # Prefer slow tokenizer for T5-family models.
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.adapter_dir,
+                str(self.adapter_dir),
                 use_fast=False,
                 legacy=True,
             )
         except TypeError:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.adapter_dir,
+                str(self.adapter_dir),
                 use_fast=False,
             )
 
