@@ -23,6 +23,8 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt -q || true; fi
 
       - name: Run unit test (family invariant)
+        env:
+          MODEL_DIR: artifacts/plain_mt5
         run: |
           python -c "from tests.test_family_theme_invariant import test_family_theme_never_calls_model; test_family_theme_never_calls_model(); print('UNIT_TEST_OK')"
 

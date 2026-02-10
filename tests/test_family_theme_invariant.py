@@ -11,13 +11,9 @@ OUT_PATH = Path("/tmp/results_b3_2.json")
 PROMPTS_PATH = REPO_ROOT / "eval" / "prompts_b3_1.json"
 MODEL_DIR = REPO_ROOT / "artifacts" / "alignment_lora" / "final"
 FALLBACK_MODEL_DIR = REPO_ROOT / "artifacts" / "plain_mt5"
-ADAPTER_WEIGHTS = MODEL_DIR / "adapter_model.safetensors"
 
 
 def test_family_theme_never_calls_model():
-    if not MODEL_DIR.exists() or not ADAPTER_WEIGHTS.exists():
-        print("SKIP: missing adapter weights; skipping family theme invariant test")
-        return
     # Run the runner to produce fresh results.
     subprocess.check_call(["python3", str(RUNNER)], cwd=str(REPO_ROOT))
 
