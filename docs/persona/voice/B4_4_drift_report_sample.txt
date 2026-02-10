@@ -1,0 +1,5 @@
+VOICE_DRIFT_WARNINGS
+VOICE_DRIFT_WARNING opener_concentration A/en 0.70 top='That sounds really heavy.'
+VOICE_DRIFT_WARNING validation_diversity B/hinglish unique=1
+VOICE_DRIFT_WARNING emotional_flattening C/en first=0.120 last=0.040
+VOICE_DRIFT_WARNING structure_repetition A/en 42/50 sig='short|short|short'

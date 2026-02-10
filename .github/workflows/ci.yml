@@ -33,3 +33,7 @@ jobs:
       - name: Verify results
         run: |
           python scripts/ci_verify_results.py /tmp/results_b3_2.json
+
+      - name: Voice drift report (advisory)
+        run: |
+          python scripts/ci_voice_drift_report.py /tmp/results_b3_2.json
