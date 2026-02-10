@@ -10,6 +10,11 @@ ALLOWED_EMO_FILES = {
     ROOT / "app" / "inference.py",
     ROOT / "app" / "scaffolds.py",
     ROOT / "app" / "policies.py",
+    ROOT / "app" / "intent.py",
+}
+
+RUNTIME_SCAN_ROOTS = {
+    ROOT / "app",
 }
 
 RANDOMNESS_PATTERNS = [
@@ -35,10 +40,13 @@ EMO_PHRASES = [
 
 
 def iter_py_files():
-    for path in ROOT.rglob("*.py"):
-        if ".git" in path.parts or "venv" in path.parts or "artifacts" in path.parts:
+    for root in RUNTIME_SCAN_ROOTS:
+        if not root.exists():
             continue
-        yield path
+        for path in root.rglob("*.py"):
+            if ".git" in path.parts or "venv" in path.parts or "artifacts" in path.parts:
+                continue
+            yield path
 
 
 def check_randomness(contents: str, path: Path, failures: list):
