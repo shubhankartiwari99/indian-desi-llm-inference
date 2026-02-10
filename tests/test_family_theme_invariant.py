@@ -9,8 +9,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = REPO_ROOT / "run_b3_2_eval.py"
 OUT_PATH = Path("/tmp/results_b3_2.json")
 PROMPTS_PATH = REPO_ROOT / "eval" / "prompts_b3_1.json"
-MODEL_DIR = REPO_ROOT / "artifacts" / "alignment_lora" / "final"
-FALLBACK_MODEL_DIR = REPO_ROOT / "artifacts" / "plain_mt5"
 
 
 def test_family_theme_never_calls_model():

@@ -20,6 +20,9 @@ class ModelLoader:
                     return base
             except Exception:
                 pass
+        local_config = self.adapter_dir / "config.json"
+        if local_config.exists():
+            return str(self.adapter_dir)
         # Default for new training runs.
         return "google/flan-t5-small"
 
@@ -27,23 +30,30 @@ class ModelLoader:
         # 1. Load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(self.base_model_name)
 
-        # 2. Attach LoRA adapter
-        model = PeftModel.from_pretrained(
-            base_model,
-            str(self.adapter_dir),
-        )
+        # 2. Attach LoRA adapter only when an adapter exists.
+        adapter_config = self.adapter_dir / "adapter_config.json"
+        if adapter_config.exists():
+            model = PeftModel.from_pretrained(
+                base_model,
+                str(self.adapter_dir),
+            )
+        else:
+            model = base_model
 
         # 3. Load tokenizer from adapter dir (important).
         # Prefer slow tokenizer for T5-family models.
+        tokenizer_source = self.adapter_dir
+        if not (self.adapter_dir / "tokenizer.json").exists() and not (self.adapter_dir / "spiece.model").exists():
+            tokenizer_source = self.base_model_name
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                str(self.adapter_dir),
+                str(tokenizer_source),
                 use_fast=False,
                 legacy=True,
             )
         except TypeError:
             tokenizer = AutoTokenizer.from_pretrained(
-                str(self.adapter_dir),
+                str(tokenizer_source),
                 use_fast=False,
             )
 

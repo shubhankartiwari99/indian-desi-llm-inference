@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import sys
 import json
 
@@ -9,7 +8,9 @@ sys.path.append(str(REPO_ROOT))
 
 from app.inference import InferenceEngine
 
-MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/plain_mt5"))
+MODEL_DIR = Path("artifacts/alignment_lora/final")
+if not MODEL_DIR.exists():
+    MODEL_DIR = Path("artifacts/plain_mt5")
 
 PROMPTS_PATH = REPO_ROOT / "eval" / "prompts_b3_1.json"
 OUT_PATH = Path("/tmp/results_b3_2.json")
