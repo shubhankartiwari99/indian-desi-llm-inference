@@ -1,0 +1,33 @@
+{
+    "contract_version": "B4.3.2",
+    "skeletons": {
+        "A": {
+            "en": {
+                "opener": ["I hear you."],
+                "validation": ["That sounds tough."],
+                "closure": ["I'm here for you."]
+            }
+        },
+        "B": {
+            "en": {
+                "opener": ["I hear you."],
+                "validation": ["That sounds really tough."],
+                "closure": ["I'm here for you."]
+            }
+        },
+        "C": {
+            "en": {
+                "opener": ["I hear you."],
+                "validation": ["That sounds incredibly tough."],
+                "closure": ["I'm here for you."]
+            }
+        },
+        "D": {
+            "en": {
+                "opener": ["I hear you."],
+                "action": ["Let's try to take a deep breath."],
+                "closure": ["I'm here for you."]
+            }
+        }
+    }
+}

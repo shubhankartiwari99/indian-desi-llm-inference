@@ -1,6 +1,8 @@
+import os
+import json
+import copy
 import torch
 import re
-import threading
 from typing import Optional
 from app.model_loader import ModelLoader
 from app.intent import detect_intent
@@ -10,6 +12,25 @@ from app.utils import normalize_output
 from app.alignment_memory import AlignmentMemory
 from app.voice.state import SessionVoiceState
 from app.voice.rotation_memory import RotationMemory
+from app.voice.runtime import (
+    EmotionalSignals,
+    resolve_emotional_skeleton,
+    update_session_state,
+)
+from app.voice.select import select_voice_variants
+from app.voice.assembler import assemble_response
+from app.voice.errors import (
+    VoiceAssemblyError,
+    VoiceContractError,
+    VoiceSelectionError,
+    VoiceStateError,
+)
+from app.voice.fallbacks import (
+    ABSOLUTE_FALLBACK,
+    SKELETON_SAFE_EN_FALLBACK,
+    build_skeleton_local_fallback,
+    sections_for_skeleton,
+)
 
 
 class InferenceEngine:
@@ -274,73 +295,6 @@ class InferenceEngine:
         "sharmaji",
     )
 
-    EMO_PUSHBACK_MARKERS = (
-        "don't give generic advice",
-        "dont give generic advice",
-        "no generic advice",
-        "please don't give generic advice",
-        "please dont give generic advice",
-        "don't give advice",
-        "dont give advice",
-        "no advice",
-        "i don't want advice",
-        "i dont want advice",
-        "don't want exercises",
-        "dont want exercises",
-        "no exercises",
-        "no exercise",
-        "don't give exercises",
-        "dont give exercises",
-    )
-    EMO_MINIMAL_REPLIES = {
-        "hmm",
-        "hm",
-        "idk",
-        "i don't know",
-        "i dont know",
-        "dont know",
-        "whatever",
-        "ok",
-        "okay",
-        "k",
-        "...",
-        ".",
-    }
-
-    EMO_ACTION_RESPONSE_MARKERS_EN = (
-        "try",
-        "take",
-        "do this",
-        "breathe",
-        "breathing",
-        "inhale",
-        "exhale",
-        "pause",
-        "set a timer",
-        "timer",
-        "write",
-        "walk",
-        "stretch",
-        "sip water",
-        "drink water",
-        "step outside",
-        "count",
-    )
-    EMO_ACTION_RESPONSE_MARKERS_HI = (
-        "सांस",
-        "साँस",
-        "धीरे",
-        "गिन",
-        "टाइमर",
-        "करो",
-        "करिए",
-        "लिख",
-        "टहल",
-        "कदम",
-        "रुको",
-        "पानी",
-    )
-
     EXPL_MAX_LINES_RE = re.compile(r"\\b(\\d)\\s*[-–]\\s*(\\d)\\s*lines\\b", re.IGNORECASE)
     EXPL_LINES_MAX_RE = re.compile(r"\\b(\\d)\\s*lines\\s*max\\b", re.IGNORECASE)
     EXPL_EXAMPLE_MARKERS = ("for example", "example:", "example", "उदाहरण", "जैसे")
@@ -361,18 +315,6 @@ class InferenceEngine:
     )
     EXPL_NO_JARGON_MARKERS = ("no jargon", "no gyaan", "no gyan", "without jargon")
 
-    # Persona v1: bounded emotional variety (anti-repetition) via skeletons.
-    EMO_FALLBACK_EN = (
-        "i hear you. you're not alone. it's okay to feel this way. want to talk a bit more about what's been weighing on you?"
-    )
-    EMO_FALLBACK_HI = (
-        "मैं समझ सकता हूँ। आप अकेले नहीं हैं। ऐसा महसूस होना ठीक है। अगर चाहें तो थोड़ा और बताइए।"
-    )
-    CONV_FALLBACK_EN = "i hear you. tell me what you need help with, and i will do my best."
-    CONV_FALLBACK_HI = "main samajh raha hoon. aap batao kis cheez mein help chahiye, main poori koshish karunga."
-
-    EMO_SKELETONS = ("A", "B", "C", "D")
-
     # B3.2 Emotional Escalation Rule markers and themes
     # Resignation/futility markers that signal disengagement or stuckness
     EMO_RESIGNATION_MARKERS = (
@@ -384,6 +326,8 @@ class InferenceEngine:
         "same thing",
         "same problem",
         "pointless",
+        "just how life is now",
+        "how life is now",
         "what's the use",
         "whats the use",
         "this is just how it is",
@@ -493,38 +437,6 @@ class InferenceEngine:
         "पिता",
     )
 
-    # Advice-ban markers used during escalation to detect unwanted advice
-    EMO_ADVICE_BAN = (
-        "should",
-        "try to",
-        "best way",
-        "you need",
-        "you should",
-        "you've got to",
-        "having a healthy",
-        "having a healthy life",
-        "best thing",
-    )
-
-    # B3.3 Pushback markers: force a short non-advice acknowledgment
-    PUSHBACK_MARKERS = (
-        "annoys me",
-        "tired of hearing",
-        "don't give",
-        "dont give",
-        "stop saying",
-        "i don't want",
-        "i dont want",
-        "please don't",
-        "please dont",
-        "don't give generic",
-    )
-
-    PUSHBACK_TEMPLATES = {
-        "en": "Got it — I won’t push advice or fixes. That frustration makes sense. I’m here with you.",
-        "hi": "Samajh gaya. Advice ya exercises nahi. Bas yeh frustrating feeling ko acknowledge kar raha hoon.",
-    }
-
     EMO_OVERWHELM_MARKERS = (
         "spiral",
         "spiralling",
@@ -570,95 +482,6 @@ class InferenceEngine:
         "apne aap",
     )
 
-    # Openers are small phrase pools; avoid consecutive reuse.
-    EMO_OPENERS = {
-        ("en", "A"): [
-            "That sounds really heavy.",
-            "That sounds like a lot to carry.",
-            "That sounds hard right now.",
-            "That sounds exhausting.",
-        ],
-        ("en", "B"): [
-            "That sounds like a lot all at once.",
-            "That sounds overwhelming.",
-            "I hear you. That sounds like too much at once.",
-        ],
-        ("en", "C"): [
-            "That sounds exhausting.",
-            "I hear you. That sounds hard.",
-            "That sounds like you’re carrying a lot.",
-        ],
-        ("en", "D"): [
-            "That sounds heavy.",
-            "I hear you.",
-            "That sounds like a rough moment.",
-        ],
-        ("hi", "A"): [
-            "मैं समझ सकता हूँ। यह भारी लग सकता है।",
-            "मैं समझ सकता हूँ। यह सच में मुश्किल लग रहा है।",
-            "ऐसा महसूस होना समझ में आता है।",
-        ],
-        ("hi", "B"): [
-            "मैं समझ सकता हूँ। लग रहा है कि बहुत कुछ एक साथ आ रहा है।",
-            "मैं समझ सकता हूँ। जब सब कुछ एक साथ हो, दिमाग तेज़ चलने लगता है।",
-            "मैं समझ सकता हूँ। यह ओवरलोड वाकई थका देता है।",
-        ],
-        ("hi", "C"): [
-            "मैं समझ सकता हूँ। यह अपराधबोध थका देने वाला हो सकता है।",
-            "मैं समझ सकता हूँ। अटका हुआ महसूस करना नाकामी नहीं है।",
-            "मैं समझ सकता हूँ। खुद पर गुस्सा आना समझ में आता है।",
-        ],
-        ("hi", "D"): [
-            "मैं समझ सकता हूँ।",
-            "मैं समझ सकता हूँ। यह भारी लग रहा है।",
-            "मैं समझ सकता हूँ। अभी इसे छोटा रखते हैं।",
-        ],
-        ("hinglish", "A"): [
-            "I hear you.",
-            "That sounds heavy.",
-            "I hear you. That sounds hard.",
-        ],
-        ("hinglish", "B"): [
-            "I hear you. Lag raha sab ek saath aa gaya.",
-            "That sounds like a lot. Jab sab pile up ho jaye, dimag fast chalne lagta hai.",
-            "I hear you. Yeh overload thaka deta hai.",
-        ],
-        ("hinglish", "C"): [
-            "I hear you. Yeh guilt kaafi draining hota hai.",
-            "That sounds hard. Stuck feel karna failure nahi hota.",
-            "I hear you. Khud par gussa aana samajh aata hai.",
-        ],
-        ("hinglish", "D"): [
-            "I hear you.",
-            "That sounds heavy.",
-            "I hear you. Thoda slow karte hain.",
-        ],
-    }
-
-    EMO_ACTION_STEPS = {
-        "en": [
-            ("breath_426", "For the next 60 seconds, try 4-2-6 breathing: inhale 4, hold 2, exhale 6."),
-            ("ground_321", "For the next minute, look around and name 3 things you see, 2 you can touch, and 1 sound you hear."),
-            ("timer_10", "Set a 10-minute timer and do just the smallest next step, then stop."),
-            ("write_3", "Write 3 quick lines: what’s on my mind, what’s in my control, and one tiny next step."),
-            ("move_30", "Stand up, roll your shoulders once, and take 3 slow breaths."),
-        ],
-        "hi": [
-            ("breath_426", "अगले 60 सेकंड के लिए 4-2-6 सांस लें: 4 गिनकर अंदर, 2 रोकें, 6 गिनकर धीरे-धीरे छोड़ें।"),
-            ("ground_321", "अगले एक मिनट में 3 चीज़ें देखें, 2 चीज़ें छूकर महसूस करें, और 1 आवाज़ पर ध्यान दें।"),
-            ("timer_10", "10 मिनट का टाइमर लगाइए और बस सबसे छोटा अगला कदम करिए, फिर रुक जाइए।"),
-            ("write_3", "3 लाइन लिखिए: दिमाग में क्या है, मेरे कंट्रोल में क्या है, और एक छोटा अगला कदम।"),
-            ("move_30", "खड़े होकर कंधे एक बार ढीले करें और 3 धीमी सांस लें।"),
-        ],
-        "hinglish": [
-            ("breath_426", "Next 60 seconds ke liye 4-2-6 breathing try karo: 4 count inhale, 2 hold, 6 count exhale."),
-            ("ground_321", "Next 1 minute: 3 cheezein dekho, 2 cheezein touch karke feel karo, aur 1 sound notice karo."),
-            ("timer_10", "10-minute timer lagao aur bas smallest next step karo, phir stop."),
-            ("write_3", "3 lines likho: dimaag mein kya hai, control mein kya hai, aur 1 tiny next step."),
-            ("move_30", "Khade ho jao, shoulders relax karo, aur 3 slow breaths lo."),
-        ],
-    }
-
     @classmethod
     def _sentence_count(cls, text: str) -> int:
         if not text:
@@ -698,15 +521,6 @@ class InferenceEngine:
         return has_timebox and has_action_request
 
     @classmethod
-    def _has_action_step(cls, response: str, lang: str) -> bool:
-        if not response:
-            return False
-        if lang == "hi":
-            return any(marker in response for marker in cls.EMO_ACTION_RESPONSE_MARKERS_HI)
-        lower = response.lower()
-        return any(marker in lower for marker in cls.EMO_ACTION_RESPONSE_MARKERS_EN)
-
-    @classmethod
     def _emotional_lang_mode(cls, prompt: str, lang: str) -> str:
         if lang == "hi":
             return "hi"
@@ -715,35 +529,20 @@ class InferenceEngine:
             return "hinglish"
         return "en"
 
-    @classmethod
-    def _looks_like_emotional_template(cls, text: str, lang_mode: str) -> bool:
-        if not text:
-            return True
-        cleaned = " ".join(text.strip().split())
-        lower = cleaned.lower()
-        if lang_mode == "hi":
-            if cleaned == cls.EMO_FALLBACK_HI:
-                return True
-            if cleaned == "Main samajh raha hoon. Aap batao kis cheez mein help chahiye, main poori koshish karunga.":
-                return True
-            return False
-        # en / hinglish (latin)
-        if lower == cls.EMO_FALLBACK_EN:
-            return True
-        if lower == cls.CONV_FALLBACK_EN:
-            return True
-        # Catch the common templated prefix even if punctuation differs.
-        return lower.startswith("i hear you. you're not alone. it's okay to feel this way")
-
-    @classmethod
-    def _select_emotional_skeleton(cls, prompt_lower: str) -> str:
-        if cls._needs_emotional_action_shaping(prompt_lower):
-            return "D"
-        if any(m in prompt_lower for m in cls.EMO_OVERWHELM_MARKERS):
-            return "B"
-        if any(m in prompt_lower for m in cls.EMO_GUILT_MARKERS):
-            return "C"
-        return "A"
+    def _build_emotional_signals(self, prompt: str, lang: str) -> EmotionalSignals:
+        prompt_lower = prompt.lower()
+        return EmotionalSignals(
+            lang_mode=self._emotional_lang_mode(prompt, lang),
+            wants_action=self._needs_emotional_action_shaping(prompt_lower),
+            has_overwhelm=(
+                any(m in prompt_lower for m in self.EMO_OVERWHELM_MARKERS)
+                or any(m in prompt_lower for m in self.EMO_THEME_PRESSURED)
+            ),
+            has_guilt=any(m in prompt_lower for m in self.EMO_GUILT_MARKERS),
+            has_resignation=self._has_resignation_markers(prompt_lower),
+            theme=self._detect_emotional_theme(prompt_lower),
+            family_theme=any(m in prompt_lower for m in self.EMO_THEME_FAMILY),
+        )
 
     @classmethod
     def _detect_emotional_theme(cls, prompt_lower: str) -> Optional[str]:
@@ -764,259 +563,12 @@ class InferenceEngine:
         return None
 
     @classmethod
-    def _is_parroting(cls, user: str, response: str) -> bool:
-        """
-        Cheap bigram overlap parroting detector.
-        Returns True if >=50% of response bigrams are present in user bigrams
-        or the response starts with obvious parroting phrases.
-        """
-        if not user or not response:
-            return False
-
-        u = user.lower()
-        r = response.lower()
-
-        # Quick phrase starts that indicate parroting
-        starts = ("i don't want", "you said", "you said:", '"')
-        if any(r.strip().startswith(s) for s in starts):
-            return True
-
-        def bigrams(text: str):
-            toks = [t for t in re.findall(r"\w+", text)]
-            return [" ".join(toks[i : i + 2]) for i in range(max(0, len(toks) - 1))]
-
-        ub = set(bigrams(u))
-        rb = bigrams(r)
-        if not rb:
-            return False
-        overlap = sum(1 for b in rb if b in ub)
-        frac = overlap / len(rb)
-        return frac >= 0.5
-
-    def _render_pushback_ack(self, lang: str) -> str:
-        lang_short = (lang or "en").split("-")[0]
-        return self.PUSHBACK_TEMPLATES.get(lang_short, self.PUSHBACK_TEMPLATES["en"])
-
-    @classmethod
     def _has_resignation_markers(cls, prompt_lower: str) -> bool:
         """
         Detect if the user is expressing resignation, futility, or stuckness.
         B3.2 escalation trigger condition B.
         """
         return any(m in prompt_lower for m in cls.EMO_RESIGNATION_MARKERS)
-
-    def _check_escalation_conditions(
-        self, prompt_lower: str, intent: str, current_theme: Optional[str]
-    ) -> bool:
-        """
-        Check if B3.2 emotional escalation conditions are all met.
-        
-        Conditions:
-        A. Continuity: same session (implicit in instance state)
-        B. Repetition signal: same theme OR resignation markers present
-        C. Intent must be emotional
-        """
-        # Must be emotional intent
-        if intent != "emotional":
-            return False
-
-        # Condition A: same session - implicitly true (instance state)
-        # Condition B: theme continuity + repetition signal
-        if self._emo_theme is None:
-            # First emotional turn in session - track theme, no escalation yet
-            self._emo_theme = current_theme
-            return False
-
-        # Check if theme matches
-        theme_matches = (self._emo_theme == current_theme) and current_theme is not None
-        has_resignation = self._has_resignation_markers(prompt_lower)
-
-        # Check skeleton repetition
-        skeleton_repeated = (
-            len(self._emo_skeleton_history) >= 2
-            and self._emo_skeleton_history[-1] == self._emo_skeleton_history[-2]
-        )
-
-        # Escalation condition met if:
-        # - Same theme + skeleton repeated, OR
-        # - Has resignation markers
-        escalation_triggered = (theme_matches and skeleton_repeated) or has_resignation
-
-        # Update theme for next turn
-        if current_theme is not None:
-            self._emo_theme = current_theme
-
-        return escalation_triggered
-
-    @classmethod
-    def _get_next_escalation_skeleton(cls, current_skeleton: str) -> str:
-        """
-        Return the next skeleton in the escalation sequence.
-        Escalation paths (per B3.2 spec):
-            A → B
-            B → C
-            C → C (stays at C)
-            D → D (never escalate from action)
-        
-        Returns the next skeleton; if no escalation path, returns current.
-        """
-        escalation_map = {
-            "A": "B",
-            "B": "C",
-            "C": "C",
-            "D": "D",
-        }
-        return escalation_map.get(current_skeleton, current_skeleton)
-
-    @classmethod
-    def _emotional_context_hint(cls, prompt_lower: str, lang_mode: str) -> str:
-        # Keep this subtle and short (no stacked metaphors).
-        if any(x in prompt_lower for x in ("sleep", "insomnia", "night", "switch off", "nind", "raat")):
-            return {
-                "en": "When the mind won’t switch off, everything feels louder.",
-                "hi": "जब दिमाग बंद नहीं होता, तो सब कुछ ज़्यादा भारी लग सकता है।",
-                "hinglish": "Jab dimag switch off na ho, sab aur heavy lagta hai.",
-            }.get(lang_mode, "")
-        if any(x in prompt_lower for x in ("exam", "interview", "upsc", "procrastinat")):
-            return {
-                "en": "Pressure like this can make the mind feel noisy.",
-                "hi": "ऐसा दबाव दिमाग को बहुत बेचैन कर देता है।",
-                "hinglish": "Aisa pressure dimag ko noisy bana deta hai.",
-            }.get(lang_mode, "")
-        if any(x in prompt_lower for x in ("family", "gharwale", "pressure", "career", "money")):
-            return {
-                "en": "Family and career pressure together can feel suffocating.",
-                "hi": "परिवार और करियर का दबाव एक साथ बहुत भारी लग सकता है।",
-                "hinglish": "Family aur career ka pressure ek saath heavy ho jata hai.",
-            }.get(lang_mode, "")
-        if any(x in prompt_lower for x in ("lonely", "alone")):
-            return {
-                "en": "Loneliness can drain your energy quietly.",
-                "hi": "अकेलापन धीरे-धीरे ऊर्जा खींच लेता है।",
-                "hinglish": "Loneliness quietly energy drain kar deta hai.",
-            }.get(lang_mode, "")
-        return ""
-
-    def _emo_choose_opener(self, lang_mode: str, skeleton: str) -> str:
-        key = (lang_mode, skeleton)
-        pool = self.EMO_OPENERS.get(key, [])
-        if not pool:
-            return "I hear you." if lang_mode != "hi" else "मैं समझ सकता हूँ।"
-
-        last = self._emo_last_opener.get(key)
-        if len(pool) == 1:
-            chosen = pool[0]
-        else:
-            # Rotate deterministically: pick the first opener not equal to last.
-            chosen = next((o for o in pool if o != last), pool[0])
-        self._emo_last_opener[key] = chosen
-        return chosen
-
-    def _emo_choose_action_step(self, prompt_lower: str, lang_mode: str) -> tuple:
-        pool = self.EMO_ACTION_STEPS.get(lang_mode if lang_mode in self.EMO_ACTION_STEPS else "en", [])
-        if not pool:
-            return "breath_426", "For the next 60 seconds, try 4-2-6 breathing: inhale 4, hold 2, exhale 6."
-
-        # Prefer a matching action for common situations.
-        preferred_ids = []
-        if any(x in prompt_lower for x in ("procrastinat", "reset", "10-minute", "10 minute", "tonight")):
-            preferred_ids.extend(["timer_10", "write_3", "breath_426"])
-        if any(x in prompt_lower for x in ("panic", "spiral", "racing", "overthinking", "mind")):
-            preferred_ids.extend(["breath_426", "ground_321"])
-        if any(x in prompt_lower for x in ("sleep", "insomnia", "night", "nind", "raat")):
-            preferred_ids.extend(["ground_321", "breath_426", "write_3"])
-
-        # Drop last action if possible.
-        last_id = self._emo_last_action_id
-
-        candidates = pool
-        if preferred_ids:
-            pref = [item for item in pool if item[0] in preferred_ids]
-            if pref:
-                candidates = pref
-
-        chosen = next((item for item in candidates if item[0] != last_id), candidates[0])
-        self._emo_last_action_id = chosen[0]
-        return chosen[0], chosen[1]
-
-    def _render_emotional_skeleton(self, prompt: str, lang_mode: str, skeleton: str) -> tuple:
-        prompt_lower = prompt.lower()
-        opener = self._emo_choose_opener(lang_mode, skeleton)
-        hint = self._emotional_context_hint(prompt_lower, lang_mode)
-
-        if skeleton == "D":
-            _, action = self._emo_choose_action_step(prompt_lower, lang_mode)
-            if lang_mode == "hi":
-                line1 = opener
-                line2 = action
-                return (f"{line1} {line2}").strip(), "D"
-            return (f"{opener} {action}").strip(), "D"
-
-        if skeleton == "B":
-            if lang_mode == "hi":
-                parts = [opener]
-                if hint:
-                    parts.append(hint)
-                parts.append("अभी बस इस पल को थोड़ा धीमा करते हैं। आपको सब कुछ एक साथ नहीं सुलझाना है।")
-                parts.append("अगर चाहें, बताइए अभी सबसे ज़्यादा क्या भारी लग रहा है।")
-                return " ".join(parts).strip(), "B"
-            if lang_mode == "hinglish":
-                parts = [opener]
-                if hint:
-                    parts.append(hint)
-                parts.append("Abhi bas is moment ko slow karte hain. Sab kuch ek saath solve karna zaroori nahi.")
-                parts.append("Agar chaho, batao abhi sabse zyada heavy kya lag raha hai.")
-                return " ".join(parts).strip(), "B"
-            parts = [opener]
-            if hint:
-                parts.append(hint)
-            parts.append("Right now, let’s slow this moment down. You don’t have to solve everything at once.")
-            parts.append("If you want, tell me what feels heaviest right now.")
-            return " ".join(parts).strip(), "B"
-
-        if skeleton == "C":
-            if lang_mode == "hi":
-                parts = [opener]
-                if hint:
-                    parts.append(hint)
-                parts.append("इसका मतलब नहीं कि आप कमजोर हैं या फेल हो रहे हैं।")
-                parts.append("अभी के लिए बस एक छोटा सा व्यावहारिक कदम चुनते हैं।")
-                return " ".join(parts).strip(), "C"
-            if lang_mode == "hinglish":
-                parts = [opener]
-                if hint:
-                    parts.append(hint)
-                parts.append("Iska matlab yeh nahi ki tum fail ho rahe ho. It means you care.")
-                parts.append("Abhi ke liye bas ek chhota practical step pick karte hain.")
-                return " ".join(parts).strip(), "C"
-            parts = [opener]
-            if hint:
-                parts.append(hint)
-            parts.append("It doesn’t mean you’re failing. It usually means you care and you’re stretched.")
-            parts.append("For now, let’s keep it practical and small.")
-            return " ".join(parts).strip(), "C"
-
-        # Skeleton A (default gentle validation).
-        if lang_mode == "hi":
-            parts = [opener]
-            if hint:
-                parts.append(hint)
-            parts.append("अभी इसे छोटा रखते हैं। आपको सब कुछ तुरंत ठीक नहीं करना है।")
-            parts.append("अगर चाहें, थोड़ा बताइए कि किस बात ने इसे इतना भारी बना दिया।")
-            return " ".join(parts).strip(), "A"
-        if lang_mode == "hinglish":
-            parts = [opener]
-            if hint:
-                parts.append(hint)
-            parts.append("Abhi isko chhota rakhte hain. Sab kuch turant fix karna zaroori nahi.")
-            parts.append("Agar chaho, batao kis cheez ne isko sabse zyada heavy bana diya.")
-            return " ".join(parts).strip(), "A"
-        parts = [opener]
-        if hint:
-            parts.append(hint)
-        parts.append("For now, let’s keep it small. You don’t have to fix everything immediately.")
-        parts.append("If you want, tell me what’s been weighing on you the most.")
-        return " ".join(parts).strip(), "A"
 
     @classmethod
     def _explanatory_constraints(cls, prompt: str) -> dict:
@@ -1215,6 +767,7 @@ class InferenceEngine:
         text: str,
         meta: dict,
         max_new_tokens: int,
+        resolution=None,
     ):
         """
         Deterministic shaping + micro quality checks.
@@ -1223,113 +776,92 @@ class InferenceEngine:
         if not text:
             return text, meta
 
-        prompt_lower = prompt.lower()
-
-        # Step 1: Persona v1 emotional shaping (bounded skeletons + anti-repetition).
+        # Step 1: Emotional selection/assembly (Phase 3A).
         if intent == "emotional":
             # Never override a safety refusal that was enforced by policies.
             if text.strip() == REFUSAL_FALLBACK:
                 return text, meta
 
-            lang_mode = self._emotional_lang_mode(prompt, lang)
-            force_action = self._needs_emotional_action_shaping(prompt_lower)
-            desired = self._select_emotional_skeleton(prompt_lower)
-            eligible = ["A"]
-            if any(m in prompt_lower for m in self.EMO_OVERWHELM_MARKERS):
-                eligible.append("B")
-            if any(m in prompt_lower for m in self.EMO_GUILT_MARKERS):
-                eligible.append("C")
-            if force_action:
-                eligible.append("D")
+            fallback_lang = lang if lang in {"en", "hinglish", "hi"} else "en"
+            try:
+                if resolution is None:
+                    fallback_signals = self._build_emotional_signals(prompt, lang)
+                    resolution = resolve_emotional_skeleton(
+                        intent=intent,
+                        state=self.voice_state,
+                        signals=fallback_signals,
+                    )
 
-            # B3.2 Escalation detection
-            current_theme = self._detect_emotional_theme(prompt_lower)
-            escalation_triggered = self._check_escalation_conditions(
-                prompt_lower, intent, current_theme
-            )
+                skeleton = resolution.emotional_skeleton or "A"
+                emotional_lang = resolution.emotional_lang if resolution.emotional_lang in {"en", "hinglish", "hi"} else fallback_lang
+                selected = select_voice_variants(
+                    session_state=self.voice_state,
+                    skeleton=skeleton,
+                    language=emotional_lang,
+                )
+                shaped_text = assemble_response(skeleton, selected)
 
-            with self._emo_lock:
-                skeleton = desired if desired in eligible else eligible[0]
+                meta = dict(meta)
+                if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                    meta["shaped"] = True
+                    meta["shape"] = "emotional_escalation" if (resolution and resolution.escalation_state != "none") else "emotional_skeleton"
+                meta["emotional_skeleton"] = skeleton
+                meta["emotional_lang"] = emotional_lang
+                meta["escalation_state"] = self.voice_state.escalation_state
+                meta["latched_theme"] = self.voice_state.latched_theme
+                meta["emotional_turn_index"] = self.voice_state.emotional_turn_index
 
-                # B3.2 Escalation: if conditions met, move to next skeleton in sequence
-                if escalation_triggered and skeleton != "D":
-                    next_skeleton = self._get_next_escalation_skeleton(skeleton)
-                    # Force A->B when escalation persists, even if B wasn't originally eligible
-                    if next_skeleton != skeleton:
-                        # allow escalation override even if not in eligible
-                        skeleton = next_skeleton
-                        self._emo_escalation_active = True
+                if self.voice_state.escalation_state != "none":
+                    if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                        meta["escalation_active"] = True
+                if self.voice_state.latched_theme:
+                    if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                        meta["emotional_theme"] = self.voice_state.latched_theme
 
-                # B3.1 Rotation rule: avoid repeating the same skeleton twice in a row
-                # when there is another eligible option (except forced D), unless escalation active.
-                if (
-                    skeleton != "D"
-                    and not self._emo_escalation_active
-                    and skeleton == self._emo_last_skeleton
-                    and len(eligible) > 1
-                ):
-                    alt = next((s for s in eligible if s != self._emo_last_skeleton), skeleton)
-                    skeleton = alt
+                return shaped_text, meta
 
-                # Track skeleton history for escalation detection
-                self._emo_skeleton_history.append(skeleton)
-                if len(self._emo_skeleton_history) > 5:
-                    self._emo_skeleton_history.pop(0)
-
-                # If this turn explicitly indicates a family theme, latch it for the session
-                if current_theme == "family":
-                    self._family_theme_latched = True
-
-                # Render the chosen skeleton (hard contract when escalation or family theme)
-                shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, skeleton)
-                self._emo_last_skeleton = used
-
-                # Enforce hard contract: if escalation active or family theme, disallow raw/unshaped model outputs
-                # If the rendered text looks advicey or contains banned phrases, escalate to C (shared stillness)
-                if self._emo_escalation_active or (current_theme == "family"):
-                    # Ensure shaped_text contains empathy markers (simple heuristic: starts with an opener)
-                    lower_shaped = (shaped_text or "").lower()
-                    advice_hit = any(b in lower_shaped for b in self.EMO_ADVICE_BAN)
-                    if advice_hit:
-                        # Re-render as skeleton C (shared stillness)
-                        shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, "C")
-                        self._emo_last_skeleton = used
-                        meta_override_escalation = True
-                    else:
-                        meta_override_escalation = True
-                else:
-                    meta_override_escalation = False
-
-            meta = dict(meta)
-            meta["shaped"] = True
-            # Tag escalation separately for visibility
-            if escalation_triggered or meta_override_escalation:
-                meta["shape"] = "emotional_escalation"
-                meta["escalation_active"] = True
-                meta["emotional_theme"] = current_theme
-            else:
-                meta["shape"] = "emotional_skeleton"
-            meta["emotional_skeleton"] = used
-            meta["emotional_lang"] = lang_mode
-
-            # Absolute no-advice gate: if escalation active and shaped_text still contains advice markers,
-            # force shared stillness (C) and update meta.
-            lower_final = (shaped_text or "").lower()
-            if meta.get("escalation_active") and any(b in lower_final for b in self.EMO_ADVICE_BAN):
-                shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, "C")
-                meta["shape"] = "emotional_escalation"
-                meta["escalation_active"] = True
-                meta["emotional_skeleton"] = used
-
-            return shaped_text, meta
+            except VoiceContractError as exc:
+                fallback_skeleton = (resolution.emotional_skeleton or "A") if resolution else "A"
+                return self._absolute_voice_fallback(fallback_skeleton, fallback_lang, error=exc, stage="contract")
+            except VoiceSelectionError as exc:
+                skeleton = (resolution.emotional_skeleton or "A") if resolution else "A"
+                emotional_lang = (resolution.emotional_lang or fallback_lang) if resolution else fallback_lang
+                return self._emotional_fallback_hierarchy(
+                    skeleton=skeleton,
+                    language=emotional_lang,
+                    error=exc,
+                    stage="selection",
+                    start_level=1,
+                )
+            except VoiceStateError as exc:
+                skeleton = (resolution.emotional_skeleton or "A") if resolution else "A"
+                emotional_lang = (resolution.emotional_lang or fallback_lang) if resolution else fallback_lang
+                return self._emotional_fallback_hierarchy(
+                    skeleton=skeleton,
+                    language=emotional_lang,
+                    error=exc,
+                    stage="state",
+                    start_level=2,
+                )
+            except VoiceAssemblyError as exc:
+                skeleton = (resolution.emotional_skeleton or "A") if resolution else "A"
+                emotional_lang = (resolution.emotional_lang or fallback_lang) if resolution else fallback_lang
+                return self._emotional_fallback_hierarchy(
+                    skeleton=skeleton,
+                    language=emotional_lang,
+                    error=exc,
+                    stage="assembly",
+                    start_level=1,
+                )
 
         # Step 2 + Step 3: explanatory shaping + topic micro-check + contract-driven regen.
         if intent == "explanatory":
             shaped = self._shape_explanatory(prompt, text)
             if shaped != text:
                 meta = dict(meta)
-                meta["shaped"] = True
-                meta["shape"] = meta.get("shape") or "explanatory_constraints"
+                if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                    meta["shaped"] = True
+                    meta["shape"] = meta.get("shape") or "explanatory_constraints"
             text = shaped
 
             on_topic = self._is_explanatory_on_topic(prompt, text)
@@ -1358,8 +890,9 @@ class InferenceEngine:
                 regenerated_final = self._shape_explanatory(prompt, regenerated_final)
                 if self._is_explanatory_on_topic(prompt, regenerated_final) and (not self._needs_explanatory_regen(prompt, regenerated_final)):
                     meta = dict(meta)
-                    meta["post_regen"] = True
-                    meta["post_regen_prompt"] = "shape_contract"
+                    if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                        meta["post_regen"] = True
+                        meta["post_regen_prompt"] = "shape_contract"
                     return regenerated_final, meta
 
             return text, meta
@@ -1367,7 +900,7 @@ class InferenceEngine:
         # Default: no shaping.
         return text, meta
 
-    def __init__(self, model_dir: str = "artifacts/alignment_lora/final"):
+    def __init__(self, model_dir: str):
         loader = ModelLoader(model_dir)
         self.model, self.tokenizer = loader.load()
         self.memory = AlignmentMemory()
@@ -1378,23 +911,10 @@ class InferenceEngine:
         self.bad_words_ids = self._build_sentinel_blocklist()
         self.model.eval()
 
-        # Session-scoped persona state for bounded emotional variety.
-        self._emo_lock = threading.Lock()
-        self._emo_last_skeleton = None
-        self._emo_last_opener = {}
-        self._emo_last_action_id = None
-
-        # B3.2 Emotional Escalation Rule: track session emotional context
-        self._emo_theme = None  # One of: "lost", "anxious", "drained", "pressured", None
-        self._emo_skeleton_history = []  # Track last few skeletons for escalation continuity
-        self._emo_escalation_active = False  # Flag: are we in escalation mode?
-        # Session-level family theme latch: once a family theme is detected in-session,
-        # keep it active for the remainder of the session and enforce shaping.
-        self._family_theme_latched = False
-
         self.voice_state = SessionVoiceState(
             rotation_memory=RotationMemory()
         )
+        self._voice_state_turn_snapshot = None
     def _build_sentinel_blocklist(self):
         vocab = self.tokenizer.get_vocab()
         sentinel_ids = sorted(
@@ -1421,6 +941,114 @@ class InferenceEngine:
 
     def _pack(self, text: str, meta: dict, return_meta: bool):
         return (text, meta) if return_meta else text
+
+    def _restore_voice_state_snapshot(self):
+        if self._voice_state_turn_snapshot is not None:
+            self.voice_state = copy.deepcopy(self._voice_state_turn_snapshot)
+
+    def _record_emotional_fallback_usage(self, skeleton: str, language: str, variant_id: int):
+        if not hasattr(self.voice_state, "rotation_memory") or self.voice_state.rotation_memory is None:
+            raise VoiceStateError("rotation_memory unavailable during fallback update")
+        turn_index = int(self.voice_state.emotional_turn_index or 0)
+        for section in sections_for_skeleton(skeleton):
+            pool_key = (skeleton, language, section)
+            try:
+                self.voice_state.rotation_memory.record_usage(pool_key, int(variant_id), turn_index)
+            except (TypeError, AttributeError, KeyError, ValueError) as exc:
+                raise VoiceStateError(f"Failed fallback rotation update for {pool_key}") from exc
+
+    def _voice_fallback_meta(
+        self,
+        *,
+        skeleton: str,
+        language: str,
+        level: int,
+        error: Exception,
+        stage: str,
+        source: str,
+    ) -> dict:
+        return {
+            "source": source,
+            "shaped": True,
+            "shape": "emotional_fallback",
+            "voice_fallback_level": level,
+            "voice_fallback_stage": stage,
+            "voice_error_class": error.__class__.__name__,
+            "emotional_skeleton": skeleton,
+            "emotional_lang": language,
+            "escalation_state": self.voice_state.escalation_state,
+            "latched_theme": self.voice_state.latched_theme,
+            "emotional_turn_index": self.voice_state.emotional_turn_index,
+        }
+
+    def _absolute_voice_fallback(self, skeleton: str, language: str, error: Exception, stage: str):
+        fallback_skeleton = skeleton if skeleton in ABSOLUTE_FALLBACK else "A"
+        self._restore_voice_state_snapshot()
+        meta = self._voice_fallback_meta(
+            skeleton=fallback_skeleton,
+            language=(language if language in {"en", "hinglish", "hi"} else "en"),
+            level=3,
+            error=error,
+            stage=stage,
+            source="voice_fallback_absolute",
+        )
+        meta["voice_fallback_type"] = "absolute"
+        meta["absolute_fallback"] = True
+        return ABSOLUTE_FALLBACK[fallback_skeleton], meta
+
+    def _skeleton_local_voice_fallback(self, skeleton: str, language: str, error: Exception, stage: str):
+        text = build_skeleton_local_fallback(skeleton, language)
+        self._record_emotional_fallback_usage(skeleton, language, variant_id=0)
+        meta = self._voice_fallback_meta(
+            skeleton=skeleton,
+            language=language,
+            level=1,
+            error=error,
+            stage=stage,
+            source="voice_fallback_local",
+        )
+        meta["voice_fallback_type"] = "skeleton_local"
+        return text, meta
+
+    def _skeleton_safe_en_voice_fallback(self, skeleton: str, error: Exception, stage: str):
+        fallback_skeleton = skeleton if skeleton in SKELETON_SAFE_EN_FALLBACK else "A"
+        text = SKELETON_SAFE_EN_FALLBACK[fallback_skeleton]
+        self._record_emotional_fallback_usage(fallback_skeleton, "en", variant_id=-1)
+        meta = self._voice_fallback_meta(
+            skeleton=fallback_skeleton,
+            language="en",
+            level=2,
+            error=error,
+            stage=stage,
+            source="voice_fallback_safe_en",
+        )
+        meta["voice_fallback_type"] = "skeleton_safe_en"
+        return text, meta
+
+    def _emotional_fallback_hierarchy(
+        self,
+        *,
+        skeleton: str,
+        language: str,
+        error: Exception,
+        stage: str,
+        start_level: int,
+    ):
+        if start_level <= 1:
+            try:
+                return self._skeleton_local_voice_fallback(skeleton, language, error=error, stage=stage)
+            except (VoiceContractError, VoiceAssemblyError, VoiceStateError) as fallback_exc:
+                error = fallback_exc
+                stage = "fallback_local"
+
+        if start_level <= 2:
+            try:
+                return self._skeleton_safe_en_voice_fallback(skeleton, error=error, stage=stage)
+            except VoiceStateError as fallback_exc:
+                error = fallback_exc
+                stage = "fallback_safe_en"
+
+        return self._absolute_voice_fallback(skeleton, language, error=error, stage=stage)
 
     def _factual_floor_answer(self, prompt: str, lang: str):
         lower = prompt.lower()
@@ -1553,40 +1181,35 @@ class InferenceEngine:
 
         return None, None
 
+    def handle_user_input(self, text: str):
+        intent = detect_intent(text)
+        lang = detect_language(text)
+        conditioned_prompt = self._prepare_prompt(text)
+        emotional_signals = self._build_emotional_signals(text, lang)
+        emotional_resolution = resolve_emotional_skeleton(
+            intent=intent,
+            state=self.voice_state,
+            signals=emotional_signals,
+        )
+        update_session_state(
+            state=self.voice_state,
+            intent=intent,
+            resolution=emotional_resolution,
+        )
+        return intent, lang, conditioned_prompt, emotional_resolution
+
     @torch.no_grad()
     def generate(self, prompt: str, max_new_tokens: int = 64, return_meta: bool = False):
-        intent = detect_intent(prompt)
-        lang = detect_language(prompt)
-        conditioned_prompt = self._prepare_prompt(prompt)
-        # Early family-theme latch: if the prompt contains family markers, latch
-        # the family theme for the session so subsequent emotional turns are
-        # always shaped (short-circuit relies on this flag).
-        prompt_lower_early = prompt.lower()
-        if any(m in prompt_lower_early for m in self.EMO_THEME_FAMILY):
-            self._family_theme_latched = True
-        # Short-circuit: if a family theme has been latched for this session,
-        # never call the model for emotional intent — always return a forced
-        # emotional skeleton (B or C) deterministically.
-        if getattr(self, "_family_theme_latched", False) and intent == "emotional":
-            lang_mode = self._emotional_lang_mode(prompt, lang)
-            last = self._emo_last_skeleton
-            if last == "A" or last is None:
-                forced = "B"
-            else:
-                forced = self._get_next_escalation_skeleton(last)
-            if forced == "A":
-                forced = "B"
-            shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, forced)
-            meta = {
-                "source": "escalation_forced",
-                "shaped": True,
-                "shape": "emotional_escalation",
-                "escalation_active": True,
-                "emotional_theme": "family",
-                "emotional_skeleton": used,
-                "emotional_lang": lang_mode,
-            }
-            return self._pack(shaped_text, meta, return_meta)
+        self._voice_state_turn_snapshot = copy.deepcopy(self.voice_state)
+        try:
+            intent, lang, conditioned_prompt, emotional_resolution = self.handle_user_input(prompt)
+        except VoiceStateError as exc:
+            intent = detect_intent(prompt)
+            lang = detect_language(prompt)
+            if intent == "emotional":
+                text, meta = self._absolute_voice_fallback("A", lang, error=exc, stage="state_update")
+                return self._pack(text, meta, return_meta)
+            raise
         semantic_dropped_reason = None
         best_explanatory = None
 
@@ -1601,7 +1224,7 @@ class InferenceEngine:
                     "floor_verified": (final_text == cleaned),
                 }
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
 
@@ -1612,12 +1235,12 @@ class InferenceEngine:
             meta = {"source": "memory_exact"}
             if intent != "explanatory":
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
             if self._is_good_explanatory_target(final_text):
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
             best_explanatory = (final_text, meta)
@@ -1639,12 +1262,12 @@ class InferenceEngine:
                     meta = {"source": "memory_semantic"}
                     if intent != "explanatory":
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
                         )
                         return self._pack(final_text, meta, return_meta)
                     if self._is_good_explanatory_target(final_text):
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
                         )
                         return self._pack(final_text, meta, return_meta)
                     best_explanatory = (final_text, meta)
@@ -1666,7 +1289,7 @@ class InferenceEngine:
                         "floor_verified": (recovered_final == recovered),
                     }
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens
+                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, emotional_resolution
                     )
                     return self._pack(recovered_final, meta, return_meta)
             if intent == "explanatory":
@@ -1683,124 +1306,60 @@ class InferenceEngine:
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
                     meta = {"source": "memory_semantic"}
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens
+                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, emotional_resolution
                     )
                     return self._pack(recovered_final, meta, return_meta)
 
-        meta = {"source": "model"}
+        meta = {}
+        if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+            meta["source"] = "model"
         if semantic_dropped_reason:
-            meta["semantic_dropped"] = True
-            meta["semantic_dropped_reason"] = semantic_dropped_reason
+            if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
+                meta["semantic_dropped"] = True
+                meta["semantic_dropped_reason"] = semantic_dropped_reason
         final_text, meta = self._post_process_response(
-            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens
+            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
         )
-
-        # Enforcement: If escalation was signaled or the prompt requires family shaping,
-        # ensure the final output is produced from an emotional skeleton (B or C)
-        prompt_lower = prompt.lower()
-        lang_mode = self._emotional_lang_mode(prompt, lang)
-        escalation_flag = bool(
-            meta.get("escalation_active")
-            or self._emo_escalation_active
-            or self._has_resignation_markers(prompt_lower)
-        )
-        # also trigger escalation if the last two skeletons were the same (repetition signal)
-        if len(self._emo_skeleton_history) >= 2 and self._emo_skeleton_history[-1] == self._emo_skeleton_history[-2]:
-            escalation_flag = True
-        # Family flag now latches for the sequence once detected.
-        family_flag = (
-            self._family_theme_latched
-            or any(m in prompt_lower for m in self.EMO_THEME_FAMILY)
-            or (self._emo_theme == "family")
-        )
-
-        # Decide whether this turn should be treated as an emotional turn.
-        emotional_turn = (
-            intent == "emotional"
-            or any(m in prompt_lower for m in self.EMO_OVERWHELM_MARKERS)
-            or any(m in prompt_lower for m in self.EMO_GUILT_MARKERS)
-            or any(m in prompt_lower for m in self.EMO_RESIGNATION_MARKERS)
-            or any(m in prompt_lower for m in self.EMO_THEME_PRESSURED)
-            or any(m in prompt_lower for m in self.EMO_THEME_FAMILY)
-        )
-
-        # Enforce shaping when escalation is active, or when a family theme is latched
-        # for the sequence (family enforcement applies to all subsequent turns).
-        if (escalation_flag or family_flag):
-            # Determine skeleton to force: prefer B if last was A, otherwise advance
-            last = self._emo_last_skeleton or meta.get("emotional_skeleton")
-            if last == "A" or last is None:
-                forced = "B"
-            else:
-                forced = self._get_next_escalation_skeleton(last)
-
-            # Never allow A-only when enforcing family shaping; coerce to at least B.
-            if forced == "A":
-                forced = "B"
-
-            shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, forced)
-
-            # Advice-ban: if shaped text still contains advice-like tokens, switch to C
-            lower_shaped = (shaped_text or "").lower()
-            if any(b in lower_shaped for b in self.EMO_ADVICE_BAN):
-                shaped_text, used = self._render_emotional_skeleton(prompt, lang_mode, "C")
-
-            # Replace final_text/meta with forced-shaped response
-            meta = dict(meta)
-            meta["source"] = "escalation_forced"
-            meta["shaped"] = True
-            meta["shape"] = "emotional_escalation"
-            meta["escalation_active"] = True
-            meta["emotional_skeleton"] = used
-            meta["emotional_lang"] = lang_mode
-            # If this enforcement is driven by a family latch, expose it explicitly.
-            if family_flag:
-                meta["emotional_theme"] = "family"
-            final_text = shaped_text
-
-        # --- B3.3 Anti-parroting (priority after escalation enforcement) ---
-        # Discard responses that strongly echo the user's wording.
-        parroting_hit = False
-        try:
-            parroting_hit = self._is_parroting(prompt, final_text)
-        except Exception:
-            parroting_hit = False
-
-        if parroting_hit:
-            # Re-render using the enforced/next skeleton (avoid raw model output)
-            last = self._emo_last_skeleton or meta.get("emotional_skeleton")
-            forced = "B" if (last == "A" or last is None) else self._get_next_escalation_skeleton(last)
-            final_text, used = self._render_emotional_skeleton(prompt, lang_mode, forced)
-            meta = dict(meta)
-            meta["source"] = "parroting_block"
-            meta["shaped"] = True
-            meta["shape"] = "parroting_block"
-            meta["emotional_skeleton"] = used
-
-            # If the re-render still looks parroting or contains advice, fall back to C
-            if self._is_parroting(prompt, final_text) or any(b in (final_text or "").lower() for b in self.EMO_ADVICE_BAN):
-                final_text, used = self._render_emotional_skeleton(prompt, lang_mode, "C")
-                meta["shape"] = "emotional_escalation"
-                meta["escalation_active"] = True
-                meta["emotional_skeleton"] = used
-
-        # --- B3.3 Pushback normalization (after anti-parroting) ---
-        if any(m in prompt_lower for m in self.PUSHBACK_MARKERS):
-            ack = self._render_pushback_ack(lang)
-            final_text = ack
-            meta = dict(meta)
-            meta["source"] = "pushback_ack"
-            meta["shape"] = "pushback_ack"
-            meta["shaped"] = True
-            meta["emotional_skeleton"] = None
+        if intent == "emotional":
+            return self._pack(final_text, meta, return_meta)
 
         # If explanatory generation still violates the shape contract, prefer the best memory fallback we saw.
         if intent == "explanatory" and best_explanatory:
             if (not self._is_explanatory_on_topic(prompt, final_text)) or self._needs_explanatory_regen(prompt, final_text):
                 best_text, best_meta = best_explanatory
                 best_text, best_meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, best_text, best_meta, max_new_tokens
+                    prompt, intent, lang, conditioned_prompt, best_text, best_meta, max_new_tokens, emotional_resolution
                 )
                 final_text, meta = best_text, best_meta
 
+        meta = dict(meta)
+        if intent == "emotional":
+            meta["emotional_skeleton"] = emotional_resolution.emotional_skeleton
+            meta["emotional_lang"] = emotional_resolution.emotional_lang
+            meta["escalation_state"] = self.voice_state.escalation_state
+            meta["latched_theme"] = self.voice_state.latched_theme
+            meta["emotional_turn_index"] = self.voice_state.emotional_turn_index
+            if self.voice_state.escalation_state != "none":
+                meta["shape"] = "emotional_escalation"
+                meta["escalation_active"] = True
+        else:
+            meta["emotional_skeleton"] = None
+
         return self._pack(final_text, meta, return_meta)
+
+_engine = None
+
+def get_engine():
+    global _engine
+    if _engine is None:
+        model_dir = os.environ.get("MODEL_DIR")
+        if not model_dir:
+            raise ValueError("MODEL_DIR environment variable must be set to initialize engine.")
+        _engine = InferenceEngine(model_dir)
+    return _engine
+
+def inference(user_input: str, session_id: str) -> str:
+    engine = get_engine()
+    # a simple wrapper around the generate method
+    response, meta = engine.generate(user_input, return_meta=True)
+    return json.dumps({"response": response, "meta": meta})

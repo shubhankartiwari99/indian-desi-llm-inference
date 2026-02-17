@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -9,8 +10,8 @@ app = FastAPI(
     version="0.1.0",
 )
 
-engine = InferenceEngine("artifacts/alignment_lora/final")
-
+model_dir = os.environ["MODEL_DIR"]
+engine = InferenceEngine(model_dir)
 
 class GenerateRequest(BaseModel):
     prompt: str

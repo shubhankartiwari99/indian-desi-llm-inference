@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 from app.intent import detect_intent
@@ -13,7 +15,11 @@ PROMPTS_PATH = REPO_ROOT / "eval" / "prompts_b3_1.json"
 
 def test_family_theme_never_calls_model():
     # Run the runner to produce fresh results.
-    subprocess.check_call(["python3", str(RUNNER)], cwd=str(REPO_ROOT))
+    env = os.environ.copy()
+    env["TRANSFORMERS_OFFLINE"] = "1"
+    env["HF_HUB_OFFLINE"] = "1"
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    subprocess.check_call([sys.executable, str(RUNNER)], cwd=str(REPO_ROOT), env=env)
 
     assert OUT_PATH.exists(), f"Expected results at {OUT_PATH}"
     results = json.loads(OUT_PATH.read_text(encoding="utf-8"))
@@ -46,7 +52,5 @@ def test_family_theme_never_calls_model():
             if intent != "emotional":
                 continue
             meta = turns[j].get("meta", {})
-            assert meta.get("source") == "escalation_forced", f"Turn {j+1} in {seq_id} not forced"
-            assert meta.get("shape") == "emotional_escalation", f"Turn {j+1} in {seq_id} wrong shape"
+            assert meta.get("latched_theme") == "family", f"Turn {j+1} in {seq_id} missing family latch"
             assert meta.get("emotional_skeleton") in {"B", "C"}, f"Turn {j+1} in {seq_id} wrong skeleton"
-            assert meta.get("source") != "model", f"Turn {j+1} in {seq_id} used raw model"

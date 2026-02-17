@@ -218,6 +218,7 @@ def detect_intent(prompt: str) -> str:
 
     emotional_triggers = [
         "i feel",
+        "feels like",
         "feel lost",
         "feeling",
         "stress",
@@ -254,7 +255,15 @@ def detect_intent(prompt: str) -> str:
         "bhaari",
         "himmat",
         "disappoint",
+        "disappointing everyone",
         "expectations",
+        "pointless",
+        "pointless to even talk",
+        "still feels heavy",
+        "hurts more than i admit",
+        "parents keep comparing",
+        "comparing me to others",
+        "they mean well",
         "gharwale",
         "shutting down",
         "shutdown",

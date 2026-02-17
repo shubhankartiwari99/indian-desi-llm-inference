@@ -8,14 +8,45 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+
+      - name: Contract diff guard (B8.1)
+        run: |
+          CONTRACT_PATH="docs/persona/voice/B4_3_controlled_variations.md"
+          BASE_FILE="$(mktemp)"
+
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git show "origin/${GITHUB_BASE_REF}:${CONTRACT_PATH}" > "$BASE_FILE" || cp "$CONTRACT_PATH" "$BASE_FILE"
+          else
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              git show "HEAD~1:${CONTRACT_PATH}" > "$BASE_FILE" || cp "$CONTRACT_PATH" "$BASE_FILE"
+            else
+              cp "$CONTRACT_PATH" "$BASE_FILE"
+            fi
+          fi
+
+          if [ "${STRUCTURAL_RELEASE:-false}" = "true" ]; then
+            python scripts/ci_contract_diff_guard.py \
+              --base-file "$BASE_FILE" \
+              --new-file "$CONTRACT_PATH" \
+              --structural-release \
+              --approval-metadata "${STRUCTURAL_APPROVAL_METADATA:-}"
+          else
+            python scripts/ci_contract_diff_guard.py \
+              --base-file "$BASE_FILE" \
+              --new-file "$CONTRACT_PATH"
+          fi
 
       - name: Install dependencies
         run: |
@@ -40,4 +71,76 @@ jobs:
 
       - name: Voice drift report (advisory)
         run: |
-          python scripts/ci_voice_drift_report.py /tmp/results_b3_2.json
+          python scripts/ci_voice_drift_report.py /tmp/results_b3_2.json --output-file artifacts/drift_report.json
+
+      - name: Performance report (telemetry)
+        run: |
+          python scripts/ci_performance_report.py --mode deterministic --output-file artifacts/performance_report.json
+
+      - name: Performance regression guard (hard scope)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_performance_regression_guard.py \
+            artifacts/performance_report.json \
+            docs/persona/voice/performance_baseline.json \
+            --mode hard \
+            --output-file artifacts/performance_regression_report.json
+
+      - name: Performance regression guard (soft scope)
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_performance_regression_guard.py \
+            artifacts/performance_report.json \
+            docs/persona/voice/performance_baseline.json \
+            --mode soft \
+            --output-file artifacts/performance_regression_report.json
+
+      - name: Stress integrity runner (hard scope)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_stress_runner.py \
+            --mode hard \
+            --performance-baseline docs/persona/voice/performance_baseline.json \
+            --output-file artifacts/stress_integrity_report.json
+
+      - name: Stress integrity runner (soft scope)
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_stress_runner.py \
+            --mode soft \
+            --performance-baseline docs/persona/voice/performance_baseline.json \
+            --output-file artifacts/stress_integrity_report.json
+
+      - name: Release snapshots (B8.1 enforced scope)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_release_snapshot.py --results-file /tmp/results_b3_2.json --artifact-dir artifacts
+
+      - name: Replay verifier (B8.1 enforced scope)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_replay_verifier.py --results-file /tmp/results_b3_2.json --artifact-dir artifacts
+
+      - name: Phase13 Boundary Check (hard scope)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: pytest tests/test_phase13_*
+
+      - name: Phase13 Boundary Check (soft scope)
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        run: pytest tests/test_phase13_*
+
+      - name: Upload voice drift report artifact
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-release-artifacts
+          path: |
+            artifacts/voice_contract_snapshot.json
+            artifacts/drift_report.json
+            artifacts/governance_report.json
+            artifacts/selector_determinism_snapshot.json
+            artifacts/performance_report.json
+            artifacts/performance_regression_report.json
+            artifacts/stress_integrity_report.json
+          if-no-files-found: error

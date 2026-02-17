@@ -66,9 +66,9 @@ English (en)
   - "It doesn’t mean you’re failing."
   - "It usually means you care and you’re stretched."
   - "Anyone dealing with this would feel weighed down."
+  - "With this much pressure for this long, feeling worn down is understandable."
 - Closure
   - "We don’t have to rush this."
-  - "I’m here with you."
 
 Hinglish
 
@@ -167,6 +167,6 @@ Hindi (hi)
   - Skeleton D only uses predefined actions
 
 ---
-Version: B4.3.0
-Last updated: 2026-02-10
+Version: B4.3.2
+Last updated: 2026-02-14
 Upstream dependencies: B4.1, B4.2
