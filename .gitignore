@@ -241,3 +241,8 @@ model/
 .env
 .kaggle/
 kaggle.json
+
+# Generated artifacts and local assets
+artifacts/
+local_models/
+.hf_datasets_cache/
