@@ -1,6 +1,8 @@
 import pytest
 from app.inference import InferenceEngine
 
+pytestmark = pytest.mark.requires_model
+
 # These keys are for CI/CD and diagnostics, and should not be present in the
 # default runtime response surface.
 FORBIDDEN_META_KEYS = [

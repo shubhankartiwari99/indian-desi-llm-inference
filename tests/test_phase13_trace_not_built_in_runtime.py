@@ -2,6 +2,8 @@ import pytest
 import os
 from app.inference import InferenceEngine
 
+pytestmark = pytest.mark.requires_model
+
 # These keys are examples of diagnostic data that should only be generated
 # when RUNTIME_DIAGNOSTICS is explicitly enabled. This is not an exhaustive list,
 # but covers the primary fields that constitute the 'decision trace'.

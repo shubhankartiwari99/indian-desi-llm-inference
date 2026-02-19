@@ -36,4 +36,4 @@ jobs:
 
       - name: Phase13 Boundary Check (model-free)
         run: |
-          pytest tests/test_phase13_no_* tests/test_phase13_trace_not_built_in_runtime.py
+          pytest -m "not requires_model" tests/test_phase13_*

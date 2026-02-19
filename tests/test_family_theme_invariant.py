@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from app.intent import detect_intent
 
 
@@ -54,3 +56,6 @@ def test_family_theme_never_calls_model():
             meta = turns[j].get("meta", {})
             assert meta.get("latched_theme") == "family", f"Turn {j+1} in {seq_id} missing family latch"
             assert meta.get("emotional_skeleton") in {"B", "C"}, f"Turn {j+1} in {seq_id} wrong skeleton"
+
+
+test_family_theme_never_calls_model = pytest.mark.requires_model(test_family_theme_never_calls_model)

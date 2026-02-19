@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from app.voice.rotation_memory import RotationMemory
 from app.voice.state import SessionVoiceState
 from app.voice.select import select_voice_variants
@@ -72,6 +74,7 @@ def test_selector_phase3b_first_turn_is_stable_and_writes_memory():
     assert state.selector_invocation_count == 1
 
 
+@pytest.mark.requires_model
 def test_phase0_eval_outputs_unchanged():
     assert BASELINE_PATH.exists(), "Missing Phase 0 baseline file"
     env = os.environ.copy()

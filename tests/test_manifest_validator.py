@@ -9,6 +9,8 @@ import sys
 
 import pytest
 
+pytestmark = pytest.mark.requires_model
+
 
 def _run_snapshot(tmp_path: Path) -> None:
     subprocess.run(

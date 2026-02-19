@@ -8,6 +8,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from app.voice.assembler import assemble_response
 from app.voice.rotation_memory import RotationMemory
 from app.voice.runtime import resolve_emotional_skeleton, update_session_state
@@ -21,6 +23,8 @@ ARTIFACT_FILES = (
     "selector_snapshot.json",
     "release_manifest.json",
 )
+
+pytestmark = pytest.mark.requires_model
 
 
 @contextlib.contextmanager
