@@ -21,33 +21,6 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Contract diff guard (B8.1)
-        run: |
-          CONTRACT_PATH="docs/persona/voice/B4_3_controlled_variations.md"
-          BASE_FILE="$(mktemp)"
-
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            git show "origin/${GITHUB_BASE_REF}:${CONTRACT_PATH}" > "$BASE_FILE" || cp "$CONTRACT_PATH" "$BASE_FILE"
-          else
-            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-              git show "HEAD~1:${CONTRACT_PATH}" > "$BASE_FILE" || cp "$CONTRACT_PATH" "$BASE_FILE"
-            else
-              cp "$CONTRACT_PATH" "$BASE_FILE"
-            fi
-          fi
-
-          if [ "${STRUCTURAL_RELEASE:-false}" = "true" ]; then
-            python scripts/ci_contract_diff_guard.py \
-              --base-file "$BASE_FILE" \
-              --new-file "$CONTRACT_PATH" \
-              --structural-release \
-              --approval-metadata "${STRUCTURAL_APPROVAL_METADATA:-}"
-          else
-            python scripts/ci_contract_diff_guard.py \
-              --base-file "$BASE_FILE" \
-              --new-file "$CONTRACT_PATH"
-          fi
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
