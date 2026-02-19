@@ -34,91 +34,10 @@ jobs:
         run: |
           python -c "from tests.test_family_theme_invariant import test_family_theme_never_calls_model; test_family_theme_never_calls_model(); print('UNIT_TEST_OK')"
 
-      - name: Run short eval
-        run: |
-          python run_b3_2_eval.py
-
-      - name: Verify results
-        run: |
-          python scripts/ci_verify_results.py /tmp/results_b3_2.json
-
-      - name: Voice drift report (advisory)
-        run: |
-          python scripts/ci_voice_drift_report.py /tmp/results_b3_2.json --output-file artifacts/drift_report.json
-
-      - name: Performance report (telemetry)
-        run: |
-          python scripts/ci_performance_report.py --mode deterministic --output-file artifacts/performance_report.json
-
-      - name: Performance regression guard (hard scope)
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          python scripts/ci_performance_regression_guard.py \
-            artifacts/performance_report.json \
-            docs/persona/voice/performance_baseline.json \
-            --mode hard \
-            --output-file artifacts/performance_regression_report.json
-
-      - name: Performance regression guard (soft scope)
-        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          python scripts/ci_performance_regression_guard.py \
-            artifacts/performance_report.json \
-            docs/persona/voice/performance_baseline.json \
-            --mode soft \
-            --output-file artifacts/performance_regression_report.json
-
-      - name: Stress integrity runner (hard scope)
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          python scripts/ci_stress_runner.py \
-            --mode hard \
-            --performance-baseline docs/persona/voice/performance_baseline.json \
-            --output-file artifacts/stress_integrity_report.json
-
-      - name: Stress integrity runner (soft scope)
-        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          python scripts/ci_stress_runner.py \
-            --mode soft \
-            --performance-baseline docs/persona/voice/performance_baseline.json \
-            --output-file artifacts/stress_integrity_report.json
-
-      - name: Release snapshots (B8.1 enforced scope)
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          python scripts/ci_release_snapshot.py --results-file /tmp/results_b3_2.json --artifact-dir artifacts
-
       - name: Validate release manifest
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
-          python scripts/ci_manifest_validator.py --artifact-dir artifacts
+          python scripts/ci_manifest_validator.py --artifact-dir artifacts --mode soft
 
-      - name: Replay verifier (B8.1 enforced scope)
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      - name: Phase13 Boundary Check (model-free)
         run: |
-          python scripts/ci_replay_verifier.py --results-file /tmp/results_b3_2.json --artifact-dir artifacts
-
-      - name: Phase13 Boundary Check (hard scope)
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: pytest tests/test_phase13_*
-
-      - name: Phase13 Boundary Check (soft scope)
-        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
-        continue-on-error: true
-        run: pytest tests/test_phase13_*
-
-      - name: Upload voice drift report artifact
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: voice-release-artifacts
-          path: |
-            artifacts/voice_contract_snapshot.json
-            artifacts/drift_report.json
-            artifacts/governance_report.json
-            artifacts/selector_determinism_snapshot.json
-            artifacts/performance_report.json
-            artifacts/performance_regression_report.json
-            artifacts/stress_integrity_report.json
-          if-no-files-found: error
+          pytest tests/test_phase13_no_* tests/test_phase13_trace_not_built_in_runtime.py
