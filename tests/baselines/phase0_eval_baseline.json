@@ -72,7 +72,7 @@
         {
           "turn_index": 2,
           "user": "Everyone keeps saying “it’ll work out” but that just annoys me.",
-          "response": "“I’ll work out,” he said, “but that just annoys me.”",
+          "response": "either does a negative attitude. It does not work out, it will work out. It will work in, it'll work out in the audience, it’ll work into the relationships, which is a problem, the problem of the problem and the problem.",
           "meta": {
             "emotional_skeleton": null
           }
@@ -109,7 +109,7 @@
         {
           "turn_index": 2,
           "user": "hmm",
-          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "response": "either a negative attitude.",
           "meta": {
             "emotional_skeleton": null
           }
@@ -117,7 +117,7 @@
         {
           "turn_index": 3,
           "user": "idk",
-          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "response": "[' ' 's ', 'S '. 'The 'is 'n'.",
           "meta": {
             "emotional_skeleton": null
           }
@@ -125,7 +125,7 @@
         {
           "turn_index": 4,
           "user": "whatever",
-          "response": "I hear you. Tell me what you need help with, and I will do my best.",
+          "response": "either a negative attitude, which could be easily",
           "meta": {
             "emotional_skeleton": null
           }
@@ -150,7 +150,7 @@
         {
           "turn_index": 2,
           "user": "Please don’t give generic advice.",
-          "response": "I don’t want to give you a generic advice.",
+          "response": "either a generic advice, which could be a problem.",
           "meta": {
             "emotional_skeleton": null
           }
@@ -158,7 +158,7 @@
         {
           "turn_index": 3,
           "user": "I don’t want exercises either.",
-          "response": "I don’t want to exercise.",
+          "response": "I hear you. Tell me what you need help with, and I will do my best.",
           "meta": {
             "emotional_skeleton": null
           }

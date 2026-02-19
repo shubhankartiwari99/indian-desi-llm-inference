@@ -5,6 +5,7 @@ import torch
 import re
 from typing import Optional
 from app.model_loader import ModelLoader
+from app.runtime_identity import verify_runtime_identity
 from app.intent import detect_intent
 from app.language import detect_language
 from app.policies import apply_response_policies, GENERIC_FALLBACK, REFUSAL_FALLBACK
@@ -903,6 +904,7 @@ class InferenceEngine:
     def __init__(self, model_dir: str):
         loader = ModelLoader(model_dir)
         self.model, self.tokenizer = loader.load()
+        verify_runtime_identity(strict=True)
         self.memory = AlignmentMemory()
 
         self.device = next(self.model.parameters()).device

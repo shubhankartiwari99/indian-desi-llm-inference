@@ -3,11 +3,41 @@ from peft import PeftModel
 import torch
 from pathlib import Path
 import json
+import os
+
+
+DEFAULT_MODEL_DIR = Path(__file__).resolve().parents[1] / "model"
+REQUIRED_MODEL_FILES = {
+    "config.json",
+    "model.safetensors",
+    "tokenizer_config.json",
+    "spiece.model",
+}
+
+
+def resolve_model_dir() -> Path:
+    env_path = os.environ.get("MODEL_DIR")
+    model_dir = Path(env_path) if env_path else DEFAULT_MODEL_DIR
+    if not model_dir.exists():
+        raise RuntimeError(
+            f"Model directory not found: {model_dir}. "
+            "Set MODEL_DIR explicitly or provide ./model/"
+        )
+    missing = [name for name in sorted(REQUIRED_MODEL_FILES) if not (model_dir / name).is_file()]
+    if missing:
+        raise RuntimeError(
+            f"Model directory missing required files: {', '.join(missing)}"
+        )
+    return model_dir
+
+
+def get_model_dir() -> Path:
+    return resolve_model_dir()
 
 
 class ModelLoader:
     def __init__(self, adapter_dir: str, base_model_name: str = None):
-        self.adapter_dir = Path(adapter_dir)
+        self.adapter_dir = resolve_model_dir()
         self.base_model_name = base_model_name or self._resolve_base_model_name()
 
     def _resolve_base_model_name(self):
@@ -23,12 +53,17 @@ class ModelLoader:
         local_config = self.adapter_dir / "config.json"
         if local_config.exists():
             return str(self.adapter_dir)
-        # Default for new training runs.
-        return "google/flan-t5-small"
+        raise RuntimeError(
+            "Model configuration missing from model directory. "
+            "Ensure config.json is present."
+        )
 
     def load(self):
         # 1. Load base model
-        base_model = AutoModelForSeq2SeqLM.from_pretrained(self.base_model_name)
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(
+            self.base_model_name,
+            local_files_only=True,
+        )
 
         # 2. Attach LoRA adapter only when adapter artifacts exist.
         adapter_config = self.adapter_dir / "adapter_config.json"
@@ -39,6 +74,7 @@ class ModelLoader:
             model = PeftModel.from_pretrained(
                 base_model,
                 str(self.adapter_dir),
+                local_files_only=True,
             )
         else:
             model = base_model
@@ -53,11 +89,13 @@ class ModelLoader:
                 str(tokenizer_source),
                 use_fast=False,
                 legacy=True,
+                local_files_only=True,
             )
         except TypeError:
             tokenizer = AutoTokenizer.from_pretrained(
                 str(tokenizer_source),
                 use_fast=False,
+                local_files_only=True,
             )
 
         device = "cuda" if torch.cuda.is_available() else "cpu"

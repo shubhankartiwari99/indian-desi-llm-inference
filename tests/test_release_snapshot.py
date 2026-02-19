@@ -85,6 +85,9 @@ def test_contract_fingerprint_stable():
 
         snapshot = json.loads((Path("artifacts") / "contract_snapshot.json").read_text(encoding="utf-8"))
         fingerprint_from_snapshot = snapshot["contract_fingerprint"]
+        model_fingerprint = snapshot.get("model_fingerprint")
+        assert model_fingerprint
+        assert model_fingerprint.startswith("sha256:")
 
         contract_data = json.loads(Path("docs/persona/voice_contract.json").read_text(encoding="utf-8"))
         canonical_contract = get_deterministic_json(contract_data)
@@ -98,9 +101,11 @@ def test_selector_snapshot_replay_identity():
     with _preserve_artifacts():
         _run_snapshot_script()
 
-        turns_from_snapshot = json.loads(
+        selector_snapshot = json.loads(
             (Path("artifacts") / "selector_snapshot.json").read_text(encoding="utf-8")
         )
+        assert selector_snapshot["model_fingerprint"].startswith("sha256:")
+        turns_from_snapshot = selector_snapshot["turns"]
 
         session_state = SessionVoiceState(rotation_memory=RotationMemory())
 
@@ -130,6 +135,7 @@ def test_manifest_integrity_links():
         manifest = json.loads(
             (Path("artifacts") / "release_manifest.json").read_text(encoding="utf-8")
         )
+        assert manifest["model_fingerprint"].startswith("sha256:")
 
         for filename, digest_from_manifest in manifest["artifact_digests"].items():
             if filename == "release_manifest.json":

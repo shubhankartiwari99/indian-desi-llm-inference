@@ -116,6 +116,11 @@ jobs:
         run: |
           python scripts/ci_release_snapshot.py --results-file /tmp/results_b3_2.json --artifact-dir artifacts
 
+      - name: Validate release manifest
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python scripts/ci_manifest_validator.py --artifact-dir artifacts
+
       - name: Replay verifier (B8.1 enforced scope)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
