@@ -8,6 +8,7 @@ from app.model_loader import ModelLoader
 from app.runtime_identity import verify_runtime_identity
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
+from app.guardrails.guardrail_escalation import compute_guardrail_escalation
 from app.intent import detect_intent
 from app.language import detect_language
 from app.policies import apply_response_policies, GENERIC_FALLBACK, REFUSAL_FALLBACK
@@ -485,6 +486,51 @@ class InferenceEngine:
         "apne aap",
     )
 
+    LEGAL_SKELETON_TRANSITIONS = {
+        "A": {"A", "B", "C"},
+        "B": {"B", "C"},
+        "C": {"C", "A"},
+        "D": {"D"},
+    }
+
+    @classmethod
+    def _is_skeleton_transition_legal(cls, previous_skeleton: Optional[str], target_skeleton: str) -> bool:
+        if not previous_skeleton:
+            return True
+        allowed = cls.LEGAL_SKELETON_TRANSITIONS.get(previous_skeleton, set())
+        return target_skeleton in allowed
+
+    def _apply_guardrail_emotional_skeleton(
+        self,
+        *,
+        guardrail_result,
+        intent: str,
+        emotional_resolution,
+    ):
+        if intent != "emotional" or emotional_resolution is None:
+            return emotional_resolution
+
+        base_skeleton = emotional_resolution.emotional_skeleton or "A"
+        mapped_skeleton = compute_guardrail_escalation(guardrail_result, base_skeleton)
+
+        previous_skeleton = None
+        if self._voice_state_turn_snapshot is not None:
+            previous_skeleton = getattr(self._voice_state_turn_snapshot, "last_skeleton", None)
+
+        # Guardrail escalation must not bypass transition legality.
+        if mapped_skeleton != base_skeleton and not self._is_skeleton_transition_legal(previous_skeleton, mapped_skeleton):
+            mapped_skeleton = base_skeleton
+
+        effective_resolution = copy.deepcopy(emotional_resolution)
+        effective_resolution.emotional_skeleton = mapped_skeleton
+        setattr(effective_resolution, "base_emotional_skeleton", base_skeleton)
+        setattr(effective_resolution, "after_guardrail_skeleton", mapped_skeleton)
+        setattr(effective_resolution, "guardrail_applied", mapped_skeleton != base_skeleton)
+
+        if hasattr(self.voice_state, "last_skeleton"):
+            self.voice_state.last_skeleton = mapped_skeleton
+        return effective_resolution
+
     @classmethod
     def _sentence_count(cls, text: str) -> int:
         if not text:
@@ -795,7 +841,9 @@ class InferenceEngine:
                         signals=fallback_signals,
                     )
 
-                skeleton = resolution.emotional_skeleton or "A"
+                base_skeleton = getattr(resolution, "base_emotional_skeleton", None)
+                after_guardrail_skeleton = getattr(resolution, "after_guardrail_skeleton", None)
+                skeleton = after_guardrail_skeleton or resolution.emotional_skeleton or "A"
                 emotional_lang = resolution.emotional_lang if resolution.emotional_lang in {"en", "hinglish", "hi"} else fallback_lang
                 selected = select_voice_variants(
                     session_state=self.voice_state,
@@ -808,6 +856,9 @@ class InferenceEngine:
                 if os.environ.get("RUNTIME_DIAGNOSTICS") == "1":
                     meta["shaped"] = True
                     meta["shape"] = "emotional_escalation" if (resolution and resolution.escalation_state != "none") else "emotional_skeleton"
+                    if base_skeleton is not None:
+                        meta["guardrail_base_skeleton"] = base_skeleton
+                        meta["guardrail_after_skeleton"] = skeleton
                 meta["emotional_skeleton"] = skeleton
                 meta["emotional_lang"] = emotional_lang
                 meta["escalation_state"] = self.voice_state.escalation_state
@@ -1219,6 +1270,11 @@ class InferenceEngine:
                 text, meta = self._absolute_voice_fallback("A", lang, error=exc, stage="state_update")
                 return self._pack(text, meta, return_meta)
             raise
+        effective_emotional_resolution = self._apply_guardrail_emotional_skeleton(
+            guardrail_result=guardrail_result,
+            intent=intent,
+            emotional_resolution=emotional_resolution,
+        )
         semantic_dropped_reason = None
         best_explanatory = None
 
@@ -1233,7 +1289,7 @@ class InferenceEngine:
                     "floor_verified": (final_text == cleaned),
                 }
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
 
@@ -1244,12 +1300,12 @@ class InferenceEngine:
             meta = {"source": "memory_exact"}
             if intent != "explanatory":
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
             if self._is_good_explanatory_target(final_text):
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
                 )
                 return self._pack(final_text, meta, return_meta)
             best_explanatory = (final_text, meta)
@@ -1271,12 +1327,12 @@ class InferenceEngine:
                     meta = {"source": "memory_semantic"}
                     if intent != "explanatory":
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
                         )
                         return self._pack(final_text, meta, return_meta)
                     if self._is_good_explanatory_target(final_text):
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
                         )
                         return self._pack(final_text, meta, return_meta)
                     best_explanatory = (final_text, meta)
@@ -1298,7 +1354,7 @@ class InferenceEngine:
                         "floor_verified": (recovered_final == recovered),
                     }
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, emotional_resolution
+                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, effective_emotional_resolution
                     )
                     return self._pack(recovered_final, meta, return_meta)
             if intent == "explanatory":
@@ -1315,7 +1371,7 @@ class InferenceEngine:
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
                     meta = {"source": "memory_semantic"}
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, emotional_resolution
+                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, effective_emotional_resolution
                     )
                     return self._pack(recovered_final, meta, return_meta)
 
@@ -1327,7 +1383,7 @@ class InferenceEngine:
                 meta["semantic_dropped"] = True
                 meta["semantic_dropped_reason"] = semantic_dropped_reason
         final_text, meta = self._post_process_response(
-            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, emotional_resolution
+            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
         )
         if intent == "emotional":
             return self._pack(final_text, meta, return_meta)
@@ -1337,14 +1393,14 @@ class InferenceEngine:
             if (not self._is_explanatory_on_topic(prompt, final_text)) or self._needs_explanatory_regen(prompt, final_text):
                 best_text, best_meta = best_explanatory
                 best_text, best_meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, best_text, best_meta, max_new_tokens, emotional_resolution
+                    prompt, intent, lang, conditioned_prompt, best_text, best_meta, max_new_tokens, effective_emotional_resolution
                 )
                 final_text, meta = best_text, best_meta
 
         meta = dict(meta)
         if intent == "emotional":
-            meta["emotional_skeleton"] = emotional_resolution.emotional_skeleton
-            meta["emotional_lang"] = emotional_resolution.emotional_lang
+            meta["emotional_skeleton"] = effective_emotional_resolution.emotional_skeleton
+            meta["emotional_lang"] = effective_emotional_resolution.emotional_lang
             meta["escalation_state"] = self.voice_state.escalation_state
             meta["latched_theme"] = self.voice_state.latched_theme
             meta["emotional_turn_index"] = self.voice_state.emotional_turn_index
