@@ -45,6 +45,7 @@ def test_trace_top_level_order_has_guardrail_between_turn_and_selection():
         "contract_fingerprint",
         "turn",
         "guardrail",
+        "skeleton",
         "selection",
         "rotation",
         "fallback",
@@ -52,6 +53,7 @@ def test_trace_top_level_order_has_guardrail_between_turn_and_selection():
         "invariants",
         "replay_hash",
     ]
+    assert trace["skeleton"] == {"base": "B", "after_guardrail": "B"}
 
 
 def test_safe_trace_guardrail_block_present_and_override_false():

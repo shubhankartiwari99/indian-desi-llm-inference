@@ -71,6 +71,7 @@ def _transition_legal(previous_skeleton: str, resolved_skeleton: str) -> bool:
 
 def compute_replay_hash(trace: Mapping[str, object]) -> str:
     turn = trace.get("turn", {})
+    skeleton = trace.get("skeleton", {})
     selection = trace.get("selection", {})
     fallback = trace.get("fallback")
     guardrail = trace.get("guardrail", {})
@@ -80,7 +81,7 @@ def compute_replay_hash(trace: Mapping[str, object]) -> str:
             ("contract_fingerprint", trace.get("contract_fingerprint")),
             ("emotional_turn_index", turn.get("emotional_turn_index")),
             ("intent", turn.get("intent")),
-            ("resolved_skeleton", turn.get("resolved_skeleton")),
+            ("skeleton_after_guardrail", skeleton.get("after_guardrail")),
             ("emotional_lang", turn.get("emotional_lang")),
             ("escalation_state", turn.get("escalation_state")),
             ("latched_theme", turn.get("latched_theme")),
@@ -114,6 +115,7 @@ def build_decision_trace(
     emotional_turn_index: int,
     previous_skeleton: str,
     resolved_skeleton: str,
+    skeleton_after_guardrail: Optional[str] = None,
     escalation_state: str = "none",
     latched_theme: Optional[str] = None,
     signals: Optional[Mapping[str, object]] = None,
@@ -132,9 +134,10 @@ def build_decision_trace(
     guardrail_action = apply_guardrail_strategy(guardrail_result)
 
     prev = str(previous_skeleton or "A")
-    curr = str(resolved_skeleton or "A")
-    transition = f"{prev}->{curr}"
-    transition_legal = _transition_legal(prev, curr)
+    base_skeleton = str(resolved_skeleton or "A")
+    after_guardrail = str(skeleton_after_guardrail or base_skeleton)
+    transition = f"{prev}->{after_guardrail}"
+    transition_legal = _transition_legal(prev, after_guardrail)
 
     turn_block = OrderedDict(
         [
@@ -142,7 +145,7 @@ def build_decision_trace(
             ("intent", str(intent)),
             ("emotional_lang", str(emotional_lang)),
             ("previous_skeleton", prev),
-            ("resolved_skeleton", curr),
+            ("resolved_skeleton", after_guardrail),
             ("skeleton_transition", transition),
             ("transition_legal", bool(transition_legal)),
             ("escalation_state", str(escalation_state)),
@@ -158,6 +161,13 @@ def build_decision_trace(
             ("risk_category", guardrail_result.risk_category),
             ("severity", guardrail_result.severity),
             ("override", bool(guardrail_action.override)),
+        ]
+    )
+
+    skeleton_block = OrderedDict(
+        [
+            ("base", base_skeleton),
+            ("after_guardrail", after_guardrail),
         ]
     )
 
@@ -202,6 +212,7 @@ def build_decision_trace(
             ("contract_fingerprint", contract_fingerprint or _compute_contract_fingerprint()),
             ("turn", turn_block),
             ("guardrail", guardrail_block),
+            ("skeleton", skeleton_block),
             ("selection", selection_block),
             ("rotation", rotation_block),
             ("fallback", _normalize_fallback(fallback)),
