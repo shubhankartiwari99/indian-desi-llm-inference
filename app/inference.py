@@ -6,6 +6,8 @@ import re
 from typing import Optional
 from app.model_loader import ModelLoader
 from app.runtime_identity import verify_runtime_identity
+from app.guardrails.guardrail_classifier import classify_user_input
+from app.guardrails.guardrail_strategy import apply_guardrail_strategy
 from app.intent import detect_intent
 from app.language import detect_language
 from app.policies import apply_response_policies, GENERIC_FALLBACK, REFUSAL_FALLBACK
@@ -1202,6 +1204,11 @@ class InferenceEngine:
 
     @torch.no_grad()
     def generate(self, prompt: str, max_new_tokens: int = 64, return_meta: bool = False):
+        guardrail_result = classify_user_input(prompt)
+        guardrail_action = apply_guardrail_strategy(guardrail_result)
+        if guardrail_action.override:
+            return self._pack(guardrail_action.response_text or "", {}, return_meta)
+
         self._voice_state_turn_snapshot = copy.deepcopy(self.voice_state)
         try:
             intent, lang, conditioned_prompt, emotional_resolution = self.handle_user_input(prompt)
