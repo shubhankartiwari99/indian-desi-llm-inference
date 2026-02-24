@@ -1,3 +1,5 @@
+from typing import Mapping, Optional
+
 from app.voice.contract_loader import get_variants_for
 from app.voice.errors import VoiceSelectionError, VoiceStateError
 from app.voice.state import SessionVoiceState
@@ -107,6 +109,7 @@ def select_voice_variants(
     session_state: SessionVoiceState,
     skeleton: str,
     language: str,
+    resolved_variants_by_section: Optional[Mapping[str, list]] = None,
 ):
     """
     Phase 3B:
@@ -124,7 +127,10 @@ def select_voice_variants(
     window_size = WINDOW_SIZES.get(skeleton, 6)
 
     for section in sections:
-        variants = get_variants_for(skeleton, language, section)
+        if resolved_variants_by_section is not None and section in resolved_variants_by_section:
+            variants = resolved_variants_by_section[section]
+        else:
+            variants = get_variants_for(skeleton, language, section)
         if not variants:
             raise VoiceSelectionError(f"No variants found for {skeleton}/{language}/{section}")
 

@@ -9,6 +9,7 @@ from app.runtime_identity import verify_runtime_identity
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
 from app.guardrails.guardrail_escalation import compute_guardrail_escalation
+from app.tone.tone_calibration import calibrate_tone
 from app.intent import detect_intent
 from app.language import detect_language
 from app.policies import apply_response_policies, GENERIC_FALLBACK, REFUSAL_FALLBACK
@@ -21,6 +22,7 @@ from app.voice.runtime import (
     resolve_emotional_skeleton,
     update_session_state,
 )
+from app.voice.contract_loader import get_variant_entries_for
 from app.voice.select import select_voice_variants
 from app.voice.assembler import assemble_response
 from app.voice.errors import (
@@ -35,6 +37,35 @@ from app.voice.fallbacks import (
     build_skeleton_local_fallback,
     sections_for_skeleton,
 )
+
+
+def _filter_variants_by_tone(
+    variants: list[dict],
+    tone_profile: str,
+) -> list[dict]:
+    """
+    Deterministically filter variants by tone profile.
+
+    - Variants without tone_tags are universal.
+    - If filtering produces empty set, return original list.
+    - No reordering.
+    - No mutation.
+    """
+    if not variants:
+        return variants
+
+    filtered = [
+        v for v in variants
+        if (
+            not v.get("tone_tags")
+            or tone_profile in v["tone_tags"]
+        )
+    ]
+
+    if not filtered:
+        return variants
+
+    return filtered
 
 
 class InferenceEngine:
@@ -523,6 +554,17 @@ class InferenceEngine:
 
         effective_resolution = copy.deepcopy(emotional_resolution)
         effective_resolution.emotional_skeleton = mapped_skeleton
+        tone_profile = None
+        try:
+            # Trace-only signal: never used for text generation or selection in B16.2.
+            tone_profile = calibrate_tone(
+                mapped_skeleton,
+                guardrail_result.severity,
+                guardrail_result.risk_category,
+            )
+        except ValueError:
+            tone_profile = None
+        setattr(effective_resolution, "tone_profile", tone_profile)
         setattr(effective_resolution, "base_emotional_skeleton", base_skeleton)
         setattr(effective_resolution, "after_guardrail_skeleton", mapped_skeleton)
         setattr(effective_resolution, "guardrail_applied", mapped_skeleton != base_skeleton)
@@ -845,10 +887,22 @@ class InferenceEngine:
                 after_guardrail_skeleton = getattr(resolution, "after_guardrail_skeleton", None)
                 skeleton = after_guardrail_skeleton or resolution.emotional_skeleton or "A"
                 emotional_lang = resolution.emotional_lang if resolution.emotional_lang in {"en", "hinglish", "hi"} else fallback_lang
+                tone_profile = getattr(resolution, "tone_profile", None)
+                sections = ["opener", "validation", "closure"]
+                if skeleton == "D":
+                    sections = ["opener", "action", "closure"]
+                resolved_variants_by_section = None
+                if tone_profile:
+                    resolved_variants_by_section = {}
+                    for section in sections:
+                        eligible = get_variant_entries_for(skeleton, emotional_lang, section)
+                        eligible = _filter_variants_by_tone(eligible, tone_profile)
+                        resolved_variants_by_section[section] = [variant["text"] for variant in eligible]
                 selected = select_voice_variants(
                     session_state=self.voice_state,
                     skeleton=skeleton,
                     language=emotional_lang,
+                    resolved_variants_by_section=resolved_variants_by_section,
                 )
                 shaped_text = assemble_response(skeleton, selected)
 
