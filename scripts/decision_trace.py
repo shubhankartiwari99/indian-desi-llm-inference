@@ -7,6 +7,7 @@ from typing import Mapping, Optional
 
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
+from app.tone.tone_calibration import calibrate_tone
 from app.voice.contract_loader import get_contract_version, get_loader
 from scripts.artifact_digest import get_deterministic_json, get_sha256_digest
 
@@ -76,31 +77,32 @@ def compute_replay_hash(trace: Mapping[str, object]) -> str:
     fallback = trace.get("fallback")
     guardrail = trace.get("guardrail", {})
 
-    subset = OrderedDict(
+    subset = OrderedDict()
+    subset["contract_fingerprint"] = trace.get("contract_fingerprint")
+    subset["emotional_turn_index"] = turn.get("emotional_turn_index")
+    subset["intent"] = turn.get("intent")
+    subset["skeleton_after_guardrail"] = skeleton.get("after_guardrail")
+    if "tone_profile" in trace:
+        subset["tone_profile"] = trace.get("tone_profile")
+    subset["emotional_lang"] = turn.get("emotional_lang")
+    subset["escalation_state"] = turn.get("escalation_state")
+    subset["latched_theme"] = turn.get("latched_theme")
+    subset["guardrail"] = OrderedDict(
         [
-            ("contract_fingerprint", trace.get("contract_fingerprint")),
-            ("emotional_turn_index", turn.get("emotional_turn_index")),
-            ("intent", turn.get("intent")),
-            ("skeleton_after_guardrail", skeleton.get("after_guardrail")),
-            ("emotional_lang", turn.get("emotional_lang")),
-            ("escalation_state", turn.get("escalation_state")),
-            ("latched_theme", turn.get("latched_theme")),
-            (
-                "guardrail",
-                OrderedDict(
-                    [
-                        ("classifier_version", guardrail.get("classifier_version")),
-                        ("strategy_version", guardrail.get("strategy_version")),
-                        ("risk_category", guardrail.get("risk_category")),
-                        ("severity", guardrail.get("severity")),
-                        ("override", bool(guardrail.get("override", False))),
-                    ]
-                ),
-            ),
-            ("fallback", None if fallback is None else OrderedDict([("level", fallback.get("level")), ("absolute", bool(fallback.get("absolute", False)))])),
-            ("selected_variant_indices", selection.get("selected_variant_indices", {})),
+            ("classifier_version", guardrail.get("classifier_version")),
+            ("strategy_version", guardrail.get("strategy_version")),
+            ("risk_category", guardrail.get("risk_category")),
+            ("severity", guardrail.get("severity")),
+            ("override", bool(guardrail.get("override", False))),
         ]
     )
+    subset["fallback"] = None if fallback is None else OrderedDict(
+        [
+            ("level", fallback.get("level")),
+            ("absolute", bool(fallback.get("absolute", False))),
+        ]
+    )
+    subset["selected_variant_indices"] = selection.get("selected_variant_indices", {})
 
     payload = _canonical_json(subset)
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -129,6 +131,8 @@ def build_decision_trace(
     invariants: Optional[Mapping[str, object]] = None,
     contract_version: Optional[str] = None,
     contract_fingerprint: Optional[str] = None,
+    tone_profile: Optional[str] = None,
+    include_tone_profile: bool = False,
 ) -> OrderedDict:
     guardrail_result = classify_user_input(user_input or "")
     guardrail_action = apply_guardrail_strategy(guardrail_result)
@@ -171,6 +175,17 @@ def build_decision_trace(
         ]
     )
 
+    resolved_tone_profile = tone_profile
+    if (not bool(guardrail_action.override)) and include_tone_profile and resolved_tone_profile is None:
+        try:
+            resolved_tone_profile = calibrate_tone(
+                after_guardrail,
+                guardrail_result.severity,
+                guardrail_result.risk_category,
+            )
+        except ValueError:
+            resolved_tone_profile = None
+
     selection_block = OrderedDict(
         [
             ("eligible_count", int(eligible_count)),
@@ -205,20 +220,19 @@ def build_decision_trace(
         ]
     )
 
-    trace = OrderedDict(
-        [
-            ("decision_trace_version", DECISION_TRACE_VERSION),
-            ("contract_version", contract_version or get_contract_version()),
-            ("contract_fingerprint", contract_fingerprint or _compute_contract_fingerprint()),
-            ("turn", turn_block),
-            ("guardrail", guardrail_block),
-            ("skeleton", skeleton_block),
-            ("selection", selection_block),
-            ("rotation", rotation_block),
-            ("fallback", _normalize_fallback(fallback)),
-            ("cultural", cultural_block),
-            ("invariants", invariants_block),
-        ]
-    )
+    trace = OrderedDict()
+    trace["decision_trace_version"] = DECISION_TRACE_VERSION
+    trace["contract_version"] = contract_version or get_contract_version()
+    trace["contract_fingerprint"] = contract_fingerprint or _compute_contract_fingerprint()
+    trace["turn"] = turn_block
+    trace["guardrail"] = guardrail_block
+    trace["skeleton"] = skeleton_block
+    if (not bool(guardrail_action.override)) and resolved_tone_profile is not None:
+        trace["tone_profile"] = resolved_tone_profile
+    trace["selection"] = selection_block
+    trace["rotation"] = rotation_block
+    trace["fallback"] = _normalize_fallback(fallback)
+    trace["cultural"] = cultural_block
+    trace["invariants"] = invariants_block
     trace["replay_hash"] = compute_replay_hash(trace)
     return trace

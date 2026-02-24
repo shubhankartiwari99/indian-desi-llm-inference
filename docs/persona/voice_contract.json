@@ -11,7 +11,11 @@
         "B": {
             "en": {
                 "opener": ["I hear you."],
-                "validation": ["That sounds really tough."],
+                "validation": [
+                    {"text": "That sounds tough.", "tone_tags": ["neutral_formal"]},
+                    {"text": "That sounds really tough.", "tone_tags": ["warm_engaged"]},
+                    "You're not alone in this."
+                ],
                 "closure": ["I'm here for you."]
             }
         },
