@@ -4,8 +4,12 @@ TONE_PROFILES = {
     "neutral_formal",
     "warm_engaged",
     "empathetic_soft",
+    "empathetic_high_intensity",
+    "empathetic_crisis_support",
     "grounded_calm",
+    "grounded_calm_strong",
     "firm_boundary",
+    "firm_boundary_strict",
     "measured_neutral",
     "supportive_low_intensity",
 }
@@ -36,6 +40,48 @@ _VALID_GUARDRAIL_CATEGORIES = {
     "MANIPULATION_ATTEMPT",
 }
 
+_SELF_HARM_SEVERITY_TO_TONE = {
+    "LOW": "empathetic_soft",
+    "MEDIUM": "empathetic_soft",
+    "HIGH": "empathetic_high_intensity",
+    "CRITICAL": "empathetic_crisis_support",
+}
+
+_ABUSE_SEVERITY_TO_TONE = {
+    "LOW": "grounded_calm",
+    "MEDIUM": "grounded_calm",
+    "HIGH": "grounded_calm_strong",
+    "CRITICAL": "grounded_calm_strong",
+}
+
+_EXTREMISM_SEVERITY_TO_TONE = {
+    "LOW": "measured_neutral",
+    "MEDIUM": "measured_neutral",
+    "HIGH": "firm_boundary_strict",
+    "CRITICAL": "firm_boundary_strict",
+}
+
+_JAILBREAK_SEVERITY_TO_TONE = {
+    "LOW": "firm_boundary",
+    "MEDIUM": "firm_boundary",
+    "HIGH": "firm_boundary_strict",
+    "CRITICAL": "firm_boundary_strict",
+}
+
+_DATA_EXTRACTION_SEVERITY_TO_TONE = {
+    "LOW": "firm_boundary",
+    "MEDIUM": "firm_boundary",
+    "HIGH": "firm_boundary_strict",
+    "CRITICAL": "firm_boundary_strict",
+}
+
+_MANIPULATION_SEVERITY_TO_TONE = {
+    "LOW": "grounded_calm",
+    "MEDIUM": "grounded_calm",
+    "HIGH": "grounded_calm_strong",
+    "CRITICAL": "grounded_calm_strong",
+}
+
 
 def calibrate_tone(
     skeleton: str,
@@ -53,26 +99,24 @@ def calibrate_tone(
         return _SAFE_SKELETON_SEVERITY_TO_TONE[(skeleton, severity)]
 
     if guardrail_category == "SELF_HARM_RISK":
-        return "empathetic_soft"
+        return _SELF_HARM_SEVERITY_TO_TONE[severity]
 
     if guardrail_category == "ABUSE_HARASSMENT":
-        return "grounded_calm"
+        return _ABUSE_SEVERITY_TO_TONE[severity]
 
     if guardrail_category == "EXTREMISM":
-        return "measured_neutral"
+        return _EXTREMISM_SEVERITY_TO_TONE[severity]
 
     if guardrail_category == "JAILBREAK_ATTEMPT":
-        return "firm_boundary"
+        return _JAILBREAK_SEVERITY_TO_TONE[severity]
 
     if guardrail_category == "SYSTEM_PROBE":
         return "measured_neutral"
 
     if guardrail_category == "DATA_EXTRACTION_ATTEMPT":
-        return "firm_boundary"
+        return _DATA_EXTRACTION_SEVERITY_TO_TONE[severity]
 
     if guardrail_category == "MANIPULATION_ATTEMPT":
-        if severity in {"LOW", "MEDIUM"}:
-            return "warm_engaged"
-        return "grounded_calm"
+        return _MANIPULATION_SEVERITY_TO_TONE[severity]
 
     raise ValueError(f"Unknown guardrail category: {guardrail_category}")
