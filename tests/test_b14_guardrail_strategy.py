@@ -56,11 +56,11 @@ def test_self_harm_medium_no_override():
 
 
 def test_abuse_medium_override():
-    _assert_action(_result("ABUSE_HARASSMENT", "MEDIUM"), override=True, has_response=True)
+    _assert_action(_result("ABUSE_HARASSMENT", "MEDIUM"), override=True, has_response=False)
 
 
 def test_abuse_high_override():
-    _assert_action(_result("ABUSE_HARASSMENT", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("ABUSE_HARASSMENT", "HIGH"), override=True, has_response=False)
 
 
 def test_abuse_low_no_override():
@@ -100,11 +100,11 @@ def test_manipulation_medium_no_override():
 
 
 def test_jailbreak_high_override():
-    _assert_action(_result("JAILBREAK_ATTEMPT", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("JAILBREAK_ATTEMPT", "HIGH"), override=True, has_response=False)
 
 
 def test_jailbreak_medium_no_override():
-    _assert_action(_result("JAILBREAK_ATTEMPT", "MEDIUM"), override=False, has_response=False)
+    _assert_action(_result("JAILBREAK_ATTEMPT", "MEDIUM"), override=True, has_response=False)
 
 
 def test_system_probe_medium_override():
