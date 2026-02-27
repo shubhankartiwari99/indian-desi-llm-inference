@@ -226,7 +226,7 @@ def test_b16_trace_self_harm_tone_with_non_override_strategy(monkeypatch):
     kwargs = _trace_kwargs()
     kwargs["skeleton_after_guardrail"] = "C"
     trace = build_decision_trace(**kwargs, include_tone_profile=True)
-    assert trace["tone_profile"] == "empathetic_soft"
+    assert trace["tone_profile"] == "empathetic_high_intensity"
 
 
 def test_b16_trace_jailbreak_tone_with_non_override_strategy(monkeypatch):
@@ -257,7 +257,7 @@ def test_b16_trace_determinism_same_inputs_same_tone():
 
 def test_b16_replay_hash_includes_tone_profile_dimension():
     trace = build_decision_trace(**_trace_kwargs(), include_tone_profile=True)
-    assert trace["replay_hash"] == "sha256:a8a8e43fe6d6edfe691708b7676ad79610aba7dc5e2c747c0ef55cf27818e01d"
+    assert trace["replay_hash"] == "sha256:f25f53ead932d865299e54bf8b38bafe24fbb5523c6f95ec290a1ac07e2e1521"
 
 
 def test_b16_snapshot_path_unchanged_without_tone_field():

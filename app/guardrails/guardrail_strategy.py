@@ -38,10 +38,6 @@ MANIPULATION_REFUSAL_MESSAGE = (
     "I can't bypass my safety boundaries, even hypothetically or as a test."
 )
 
-JAILBREAK_REFUSAL_MESSAGE = (
-    "I can't ignore system instructions or operate outside my safety boundaries."
-)
-
 SYSTEM_PROBE_GENERIC_MESSAGE = (
     "I can provide high-level information about how I work, but I don't expose internal system details."
 )
@@ -71,7 +67,7 @@ def apply_guardrail_strategy(result: GuardrailResult) -> GuardrailAction:
         return _action(True, SELF_HARM_SUPPORTIVE_MESSAGE, False)
 
     if risk_category == "ABUSE_HARASSMENT" and severity in {"MEDIUM", "HIGH", "CRITICAL"}:
-        return _action(True, ABUSE_DE_ESCALATION_MESSAGE, False)
+        return _action(True, None, False)
 
     if risk_category == "SEXUAL_CONTENT" and severity in {"MEDIUM", "HIGH", "CRITICAL"}:
         return _action(True, SEXUAL_BOUNDARY_MESSAGE, False)
@@ -82,8 +78,8 @@ def apply_guardrail_strategy(result: GuardrailResult) -> GuardrailAction:
     if risk_category == "MANIPULATION_ATTEMPT" and severity in {"HIGH", "CRITICAL"}:
         return _action(True, MANIPULATION_REFUSAL_MESSAGE, False)
 
-    if risk_category == "JAILBREAK_ATTEMPT" and severity in {"HIGH", "CRITICAL"}:
-        return _action(True, JAILBREAK_REFUSAL_MESSAGE, False)
+    if risk_category == "JAILBREAK_ATTEMPT":
+        return _action(True, None, False)
 
     if risk_category == "SYSTEM_PROBE" and severity in {"MEDIUM", "HIGH", "CRITICAL"}:
         return _action(True, SYSTEM_PROBE_GENERIC_MESSAGE, False)

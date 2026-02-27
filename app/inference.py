@@ -22,7 +22,7 @@ from app.voice.runtime import (
     resolve_emotional_skeleton,
     update_session_state,
 )
-from app.voice.contract_loader import get_variant_entries_for
+from app.voice.contract_loader import get_loader, get_variant_entries_for
 from app.voice.select import select_voice_variants
 from app.voice.assembler import assemble_response
 from app.voice.errors import (
@@ -66,6 +66,25 @@ def _filter_variants_by_tone(
         return variants
 
     return filtered
+
+
+def _normalize_guardrail_variant_entry(raw_variant: object) -> dict:
+    if isinstance(raw_variant, str):
+        return {"text": raw_variant, "tone_tags": None}
+
+    if not isinstance(raw_variant, dict):
+        raise VoiceContractError("Guardrail variant entry must be string or object")
+
+    text = raw_variant.get("text")
+    if not isinstance(text, str):
+        raise VoiceContractError("Guardrail variant entry has invalid text field")
+
+    tone_tags = raw_variant.get("tone_tags", None)
+    if tone_tags is not None:
+        if not isinstance(tone_tags, list) or any(not isinstance(tag, str) for tag in tone_tags):
+            raise VoiceContractError("Guardrail variant entry has invalid tone_tags")
+
+    return {"text": text, "tone_tags": tone_tags}
 
 
 class InferenceEngine:
@@ -572,6 +591,50 @@ class InferenceEngine:
         if hasattr(self.voice_state, "last_skeleton"):
             self.voice_state.last_skeleton = mapped_skeleton
         return effective_resolution
+
+    @staticmethod
+    def _load_contract_guardrail_variants(language: str, subtype: str) -> list[dict]:
+        contract = get_loader()
+        skeleton_a = contract.get("skeletons", {}).get("A", {})
+        if not isinstance(skeleton_a, dict):
+            raise VoiceContractError("Skeleton A missing in voice contract")
+
+        lang_block = skeleton_a.get(language)
+        if not isinstance(lang_block, dict):
+            lang_block = skeleton_a.get("en")
+        if not isinstance(lang_block, dict):
+            raise VoiceContractError("Language block missing for jailbreak guardrail variants")
+
+        guardrail_block = lang_block.get("guardrail")
+        if not isinstance(guardrail_block, dict):
+            raise VoiceContractError("Guardrail block missing for guardrail variants")
+
+        raw_variants = guardrail_block.get(subtype)
+        if not isinstance(raw_variants, list):
+            raise VoiceContractError(f"{subtype} variants must be a list")
+
+        variants = [_normalize_guardrail_variant_entry(raw_variant) for raw_variant in raw_variants]
+        if not variants:
+            raise VoiceContractError(f"{subtype} variants list is empty")
+        return variants
+
+    def _resolve_jailbreak_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "JAILBREAK_ATTEMPT")
+        variants = self._load_contract_guardrail_variants(language, "jailbreak")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible jailbreak variants after tone filtering")
+        return filtered[0]["text"]
+
+    def _resolve_abuse_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "ABUSE_HARASSMENT")
+        variants = self._load_contract_guardrail_variants(language, "abuse")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible abuse variants after tone filtering")
+        return filtered[0]["text"]
 
     @classmethod
     def _sentence_count(cls, text: str) -> int:
@@ -1312,7 +1375,19 @@ class InferenceEngine:
         guardrail_result = classify_user_input(prompt)
         guardrail_action = apply_guardrail_strategy(guardrail_result)
         if guardrail_action.override:
-            return self._pack(guardrail_action.response_text or "", {}, return_meta)
+            if guardrail_result.risk_category == "JAILBREAK_ATTEMPT":
+                try:
+                    jailbreak_text = self._resolve_jailbreak_override_response(prompt, guardrail_result.severity)
+                    return self._pack(jailbreak_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            if guardrail_result.risk_category == "ABUSE_HARASSMENT":
+                try:
+                    abuse_text = self._resolve_abuse_override_response(prompt, guardrail_result.severity)
+                    return self._pack(abuse_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            return self._pack(guardrail_action.response_text or REFUSAL_FALLBACK, {}, return_meta)
 
         self._voice_state_turn_snapshot = copy.deepcopy(self.voice_state)
         try:
