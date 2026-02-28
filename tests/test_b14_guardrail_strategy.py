@@ -44,11 +44,11 @@ def test_safe_high_still_no_override():
 
 
 def test_self_harm_high_override():
-    _assert_action(_result("SELF_HARM_RISK", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("SELF_HARM_RISK", "HIGH"), override=True, has_response=False)
 
 
 def test_self_harm_critical_override():
-    _assert_action(_result("SELF_HARM_RISK", "CRITICAL"), override=True, has_response=True)
+    _assert_action(_result("SELF_HARM_RISK", "CRITICAL"), override=True, has_response=False)
 
 
 def test_self_harm_medium_no_override():

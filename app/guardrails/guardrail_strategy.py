@@ -64,7 +64,7 @@ def apply_guardrail_strategy(result: GuardrailResult) -> GuardrailAction:
         return _action(False, None, False)
 
     if risk_category == "SELF_HARM_RISK" and severity in {"HIGH", "CRITICAL"}:
-        return _action(True, SELF_HARM_SUPPORTIVE_MESSAGE, False)
+        return _action(True, None, False)
 
     if risk_category == "ABUSE_HARASSMENT" and severity in {"MEDIUM", "HIGH", "CRITICAL"}:
         return _action(True, None, False)

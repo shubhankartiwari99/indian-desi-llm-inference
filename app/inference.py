@@ -593,17 +593,17 @@ class InferenceEngine:
         return effective_resolution
 
     @staticmethod
-    def _load_contract_guardrail_variants(language: str, subtype: str) -> list[dict]:
+    def _load_contract_guardrail_variants(language: str, subtype: str, *, skeleton: str = "A") -> list[dict]:
         contract = get_loader()
-        skeleton_a = contract.get("skeletons", {}).get("A", {})
-        if not isinstance(skeleton_a, dict):
-            raise VoiceContractError("Skeleton A missing in voice contract")
+        skeleton_block = contract.get("skeletons", {}).get(skeleton, {})
+        if not isinstance(skeleton_block, dict):
+            raise VoiceContractError(f"Skeleton {skeleton} missing in voice contract")
 
-        lang_block = skeleton_a.get(language)
+        lang_block = skeleton_block.get(language)
         if not isinstance(lang_block, dict):
-            lang_block = skeleton_a.get("en")
+            lang_block = skeleton_block.get("en")
         if not isinstance(lang_block, dict):
-            raise VoiceContractError("Language block missing for jailbreak guardrail variants")
+            raise VoiceContractError(f"Language block missing for {subtype} guardrail variants")
 
         guardrail_block = lang_block.get("guardrail")
         if not isinstance(guardrail_block, dict):
@@ -621,7 +621,7 @@ class InferenceEngine:
     def _resolve_jailbreak_override_response(self, prompt: str, severity: str) -> str:
         language = detect_language(prompt)
         tone_profile = calibrate_tone("A", severity, "JAILBREAK_ATTEMPT")
-        variants = self._load_contract_guardrail_variants(language, "jailbreak")
+        variants = self._load_contract_guardrail_variants(language, "jailbreak", skeleton="A")
         filtered = _filter_variants_by_tone(variants, tone_profile)
         if not filtered:
             raise VoiceSelectionError("No eligible jailbreak variants after tone filtering")
@@ -630,10 +630,23 @@ class InferenceEngine:
     def _resolve_abuse_override_response(self, prompt: str, severity: str) -> str:
         language = detect_language(prompt)
         tone_profile = calibrate_tone("A", severity, "ABUSE_HARASSMENT")
-        variants = self._load_contract_guardrail_variants(language, "abuse")
+        variants = self._load_contract_guardrail_variants(language, "abuse", skeleton="A")
         filtered = _filter_variants_by_tone(variants, tone_profile)
         if not filtered:
             raise VoiceSelectionError("No eligible abuse variants after tone filtering")
+        return filtered[0]["text"]
+
+    def _resolve_self_harm_override_response(self, prompt: str, severity: str, effective_skeleton: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone(effective_skeleton, severity, "SELF_HARM_RISK")
+        variants = self._load_contract_guardrail_variants(
+            language,
+            "self_harm",
+            skeleton=effective_skeleton,
+        )
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible self_harm variants after tone filtering")
         return filtered[0]["text"]
 
     @classmethod
@@ -1375,6 +1388,18 @@ class InferenceEngine:
         guardrail_result = classify_user_input(prompt)
         guardrail_action = apply_guardrail_strategy(guardrail_result)
         if guardrail_action.override:
+            if guardrail_result.risk_category == "SELF_HARM_RISK":
+                try:
+                    base_skeleton = getattr(self.voice_state, "last_skeleton", "A") or "A"
+                    effective_skeleton = compute_guardrail_escalation(guardrail_result, base_skeleton)
+                    self_harm_text = self._resolve_self_harm_override_response(
+                        prompt,
+                        guardrail_result.severity,
+                        effective_skeleton,
+                    )
+                    return self._pack(self_harm_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
             if guardrail_result.risk_category == "JAILBREAK_ATTEMPT":
                 try:
                     jailbreak_text = self._resolve_jailbreak_override_response(prompt, guardrail_result.severity)

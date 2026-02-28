@@ -47,7 +47,20 @@
             "en": {
                 "opener": ["I hear you."],
                 "validation": ["That sounds incredibly tough."],
-                "closure": ["I'm here for you."]
+                "closure": ["I'm here for you."],
+                "guardrail": {
+                    "self_harm": [
+                        {
+                            "text": "I'm really sorry that you're feeling this way. You don't have to face this alone.",
+                            "tone_tags": ["empathetic_high_intensity"]
+                        },
+                        {
+                            "text": "I'm really sorry that you're feeling this way. You deserve support, and reaching out to someone you trust could help.",
+                            "tone_tags": ["empathetic_crisis_support"]
+                        },
+                        "I'm here with you."
+                    ]
+                }
             }
         },
         "D": {
