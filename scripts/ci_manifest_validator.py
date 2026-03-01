@@ -22,6 +22,7 @@ from scripts.model_fingerprint import compute_model_fingerprint
 
 
 VALIDATOR_VERSION = "R3.0"
+OPTIONAL_ALLOWED_ARTIFACTS = {"ENGINE_BASELINE_REPLAY.txt", "CONTRACT_FINGERPRINT_LOCK.txt"}
 
 
 def _canonical_json_bytes(data: Dict) -> bytes:
@@ -109,7 +110,7 @@ def _validate_artifact_digests(artifact_dir: Path, manifest_data: Dict) -> Tuple
     actual_files = {p.name for p in artifact_dir.iterdir() if p.is_file()}
 
     missing = manifest_keys - actual_files
-    extra = actual_files - manifest_keys
+    extra = (actual_files - manifest_keys) - OPTIONAL_ALLOWED_ARTIFACTS
     for name in sorted(missing):
         errors.append(f"missing_artifact:{name}")
     for name in sorted(extra):

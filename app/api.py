@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_escalation import compute_guardrail_escalation
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
+from app.engine_identity import ENGINE_NAME, ENGINE_RELEASE_STAGE, ENGINE_VERSION
 from app.inference import InferenceEngine
 from app.tone.tone_calibration import calibrate_tone
 
@@ -161,3 +162,12 @@ async def generate_text(request: Request):
         return JSONResponse(status_code=200, content=response_payload)
     except Exception:
         return JSONResponse(status_code=500, content={"error": "Inference failed.", "code": "INFERENCE_FAILED"})
+
+
+@app.get("/version")
+def version():
+    return {
+        "engine_name": ENGINE_NAME,
+        "engine_version": ENGINE_VERSION,
+        "release_stage": ENGINE_RELEASE_STAGE,
+    }
