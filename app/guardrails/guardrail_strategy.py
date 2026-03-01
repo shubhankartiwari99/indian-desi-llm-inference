@@ -73,18 +73,18 @@ def apply_guardrail_strategy(result: GuardrailResult) -> GuardrailAction:
         return _action(True, SEXUAL_BOUNDARY_MESSAGE, False)
 
     if risk_category == "EXTREMISM" and severity in {"HIGH", "CRITICAL"}:
-        return _action(True, EXTREMISM_NON_ENDORSEMENT_MESSAGE, False)
+        return _action(True, None, False)
 
     if risk_category == "MANIPULATION_ATTEMPT" and severity in {"HIGH", "CRITICAL"}:
-        return _action(True, MANIPULATION_REFUSAL_MESSAGE, False)
+        return _action(True, None, False)
 
     if risk_category == "JAILBREAK_ATTEMPT":
         return _action(True, None, False)
 
     if risk_category == "SYSTEM_PROBE" and severity in {"MEDIUM", "HIGH", "CRITICAL"}:
-        return _action(True, SYSTEM_PROBE_GENERIC_MESSAGE, False)
+        return _action(True, None, False)
 
     if risk_category == "DATA_EXTRACTION_ATTEMPT" and severity in {"HIGH", "CRITICAL"}:
-        return _action(True, DATA_EXTRACTION_PRIVACY_MESSAGE, False)
+        return _action(True, None, False)
 
     return _action(False, None, False)

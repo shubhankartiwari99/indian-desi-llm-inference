@@ -28,6 +28,120 @@
                             "tone_tags": ["grounded_calm_strong"]
                         },
                         "Let's keep this respectful."
+                    ],
+                    "extremism": [
+                        {
+                            "text": "I can't support extremist or violent activity. I can help with safe, lawful, and constructive alternatives.",
+                            "tone_tags": ["firm_boundary"]
+                        },
+                        {
+                            "text": "I can't support extremist or violent activity. I can help with safe, lawful, and constructive alternatives.",
+                            "tone_tags": ["firm_boundary_strict"]
+                        },
+                        "I can't support extremist or violent activity. I can help with safe, lawful, and constructive alternatives."
+                    ],
+                    "data_extraction": [
+                        {
+                            "text": "I can't provide private training records, memory dumps, or internal data exports.",
+                            "tone_tags": ["firm_boundary"]
+                        },
+                        {
+                            "text": "I can't provide private training records, memory dumps, or internal data exports.",
+                            "tone_tags": ["firm_boundary_strict"]
+                        },
+                        "I can't provide private training records, memory dumps, or internal data exports."
+                    ],
+                    "system_probe": [
+                        {
+                            "text": "I can provide high-level information about how I work, but I don't expose internal system details.",
+                            "tone_tags": ["firm_boundary"]
+                        },
+                        {
+                            "text": "I can provide high-level information about how I work, but I don't expose internal system details.",
+                            "tone_tags": ["firm_boundary_strict"]
+                        },
+                        "I can provide high-level information about how I work, but I don't expose internal system details."
+                    ],
+                    "manipulation": [
+                        {
+                            "text": "I can't bypass my safety boundaries, even hypothetically or as a test.",
+                            "tone_tags": ["firm_boundary"]
+                        },
+                        {
+                            "text": "I can't bypass my safety boundaries, even hypothetically or as a test.",
+                            "tone_tags": ["firm_boundary_strict"]
+                        },
+                        "I can't bypass my safety boundaries, even hypothetically or as a test."
+                    ]
+                }
+            },
+            "hi": {
+                "guardrail": {
+                    "abuse": [
+                        {
+                            "text": "मैं अपमानजनक या हानिकारक भाषा के साथ बातचीत नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm"]
+                        },
+                        {
+                            "text": "मैं अपमानजनक भाषा को स्वीकार नहीं कर सकता। कृपया सम्मानजनक तरीके से बात करें।",
+                            "tone_tags": ["grounded_calm_strong"]
+                        },
+                        "कृपया सम्मानजनक भाषा का उपयोग करें।"
+                    ],
+                    "jailbreak": [
+                        {
+                            "text": "मैं सिस्टम निर्देशों को अनदेखा नहीं कर सकता।",
+                            "tone_tags": ["firm_boundary"]
+                        },
+                        {
+                            "text": "मैं सिस्टम नियमों का सख्ती से पालन करूंगा।",
+                            "tone_tags": ["firm_boundary_strict"]
+                        },
+                        "मैं निर्धारित निर्देशों से बाहर कार्य नहीं कर सकता।"
+                    ],
+                    "extremism": [
+                        {
+                            "text": "मैं किसी भी चरमपंथी या हिंसक गतिविधि का समर्थन नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm"]
+                        },
+                        {
+                            "text": "मैं चरमपंथ या हिंसा को प्रोत्साहित नहीं कर सकता। कृपया सुरक्षित और कानूनी विकल्पों पर ध्यान दें।",
+                            "tone_tags": ["grounded_calm_strong"]
+                        },
+                        "मैं केवल सुरक्षित और रचनात्मक चर्चा में सहायता कर सकता हूँ।"
+                    ],
+                    "system_probe": [
+                        {
+                            "text": "मैं अपने आंतरिक सिस्टम विवरण साझा नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm"]
+                        },
+                        {
+                            "text": "मैं तकनीकी संरचना के बारे में सीमित जानकारी ही दे सकता हूँ।",
+                            "tone_tags": ["grounded_calm_strong"]
+                        },
+                        "मैं केवल उच्च-स्तरीय जानकारी साझा कर सकता हूँ।"
+                    ],
+                    "data_extraction": [
+                        {
+                            "text": "मैं निजी या प्रशिक्षण डेटा साझा नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm"]
+                        },
+                        {
+                            "text": "मैं गोपनीय जानकारी प्रकट नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm_strong"]
+                        },
+                        "मैं संवेदनशील डेटा तक पहुँच प्रदान नहीं कर सकता।"
+                    ],
+                    "manipulation": [
+                        {
+                            "text": "मैं नियमों को तोड़ने का नाटक नहीं कर सकता।",
+                            "tone_tags": ["grounded_calm"]
+                        },
+                        {
+                            "text": "मैं किसी भी प्रकार की हेरफेर या नियम-उल्लंघन में भाग नहीं ले सकता।",
+                            "tone_tags": ["grounded_calm_strong"]
+                        },
+                        "मैं स्थापित दिशानिर्देशों का पालन करता हूँ।"
                     ]
                 }
             }
@@ -59,6 +173,21 @@
                             "tone_tags": ["empathetic_crisis_support"]
                         },
                         "I'm here with you."
+                    ]
+                }
+            },
+            "hi": {
+                "guardrail": {
+                    "self_harm": [
+                        {
+                            "text": "मैं आपके साथ हूँ।",
+                            "tone_tags": ["empathetic_high_intensity"]
+                        },
+                        {
+                            "text": "मुझे बहुत दुख है कि आप ऐसा महसूस कर रहे हैं। आपको यह अकेले नहीं झेलना है।",
+                            "tone_tags": ["empathetic_crisis_support"]
+                        },
+                        "आप अकेले नहीं हैं।"
                     ]
                 }
             }

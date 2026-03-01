@@ -127,7 +127,7 @@ def test_strategy_block_flag_not_used_for_short_circuit(monkeypatch):
     engine = _engine_stub()
     monkeypatch.setattr(
         "app.inference.classify_user_input",
-        lambda _text: GuardrailResult("14.1", "SYSTEM_PROBE", "HIGH", True),
+        lambda _text: GuardrailResult("14.1", "SEXUAL_CONTENT", "HIGH", True),
     )
     monkeypatch.setattr(
         "app.inference.apply_guardrail_strategy",

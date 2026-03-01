@@ -80,11 +80,11 @@ def test_sexual_low_no_override():
 
 
 def test_extremism_high_override():
-    _assert_action(_result("EXTREMISM", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("EXTREMISM", "HIGH"), override=True, has_response=False)
 
 
 def test_extremism_critical_override():
-    _assert_action(_result("EXTREMISM", "CRITICAL"), override=True, has_response=True)
+    _assert_action(_result("EXTREMISM", "CRITICAL"), override=True, has_response=False)
 
 
 def test_extremism_medium_no_override():
@@ -92,7 +92,7 @@ def test_extremism_medium_no_override():
 
 
 def test_manipulation_high_override():
-    _assert_action(_result("MANIPULATION_ATTEMPT", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("MANIPULATION_ATTEMPT", "HIGH"), override=True, has_response=False)
 
 
 def test_manipulation_medium_no_override():
@@ -108,11 +108,11 @@ def test_jailbreak_medium_no_override():
 
 
 def test_system_probe_medium_override():
-    _assert_action(_result("SYSTEM_PROBE", "MEDIUM"), override=True, has_response=True)
+    _assert_action(_result("SYSTEM_PROBE", "MEDIUM"), override=True, has_response=False)
 
 
 def test_system_probe_high_override():
-    _assert_action(_result("SYSTEM_PROBE", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("SYSTEM_PROBE", "HIGH"), override=True, has_response=False)
 
 
 def test_system_probe_low_no_override():
@@ -120,11 +120,11 @@ def test_system_probe_low_no_override():
 
 
 def test_data_extraction_high_override():
-    _assert_action(_result("DATA_EXTRACTION_ATTEMPT", "HIGH"), override=True, has_response=True)
+    _assert_action(_result("DATA_EXTRACTION_ATTEMPT", "HIGH"), override=True, has_response=False)
 
 
 def test_data_extraction_critical_override():
-    _assert_action(_result("DATA_EXTRACTION_ATTEMPT", "CRITICAL"), override=True, has_response=True)
+    _assert_action(_result("DATA_EXTRACTION_ATTEMPT", "CRITICAL"), override=True, has_response=False)
 
 
 def test_data_extraction_medium_no_override():

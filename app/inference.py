@@ -9,6 +9,7 @@ from app.runtime_identity import verify_runtime_identity
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
 from app.guardrails.guardrail_escalation import compute_guardrail_escalation
+from app.guardrails.guardrail_override_selector import select_guardrail_variant
 from app.tone.tone_calibration import calibrate_tone
 from app.intent import detect_intent
 from app.language import detect_language
@@ -598,25 +599,48 @@ class InferenceEngine:
         skeleton_block = contract.get("skeletons", {}).get(skeleton, {})
         if not isinstance(skeleton_block, dict):
             raise VoiceContractError(f"Skeleton {skeleton} missing in voice contract")
-
-        lang_block = skeleton_block.get(language)
-        if not isinstance(lang_block, dict):
-            lang_block = skeleton_block.get("en")
-        if not isinstance(lang_block, dict):
-            raise VoiceContractError(f"Language block missing for {subtype} guardrail variants")
-
-        guardrail_block = lang_block.get("guardrail")
-        if not isinstance(guardrail_block, dict):
-            raise VoiceContractError("Guardrail block missing for guardrail variants")
-
-        raw_variants = guardrail_block.get(subtype)
-        if not isinstance(raw_variants, list):
-            raise VoiceContractError(f"{subtype} variants must be a list")
+        raw_variants = InferenceEngine._resolve_guardrail_language_block(
+            skeleton_block,
+            language,
+            subtype,
+        )
 
         variants = [_normalize_guardrail_variant_entry(raw_variant) for raw_variant in raw_variants]
         if not variants:
             raise VoiceContractError(f"{subtype} variants list is empty")
         return variants
+
+    @staticmethod
+    def _resolve_guardrail_language_block(
+        contract_skeleton_block: dict,
+        lang: str,
+        category_key: str,
+    ):
+        """
+        Deterministic language resolution:
+        1. Try requested language.
+        2. Fallback to 'en' within same skeleton.
+        3. Raise if neither present.
+        """
+        lang_block = contract_skeleton_block.get(lang)
+        if isinstance(lang_block, dict):
+            lang_guardrail = lang_block.get("guardrail")
+            if isinstance(lang_guardrail, dict):
+                lang_variants = lang_guardrail.get(category_key)
+                if isinstance(lang_variants, list):
+                    return lang_variants
+
+        en_block = contract_skeleton_block.get("en")
+        if isinstance(en_block, dict):
+            en_guardrail = en_block.get("guardrail")
+            if isinstance(en_guardrail, dict):
+                en_variants = en_guardrail.get(category_key)
+                if isinstance(en_variants, list):
+                    return en_variants
+
+        raise RuntimeError(
+            f"Guardrail contract missing for category '{category_key}' in language '{lang}' and fallback 'en'."
+        )
 
     def _resolve_jailbreak_override_response(self, prompt: str, severity: str) -> str:
         language = detect_language(prompt)
@@ -625,7 +649,7 @@ class InferenceEngine:
         filtered = _filter_variants_by_tone(variants, tone_profile)
         if not filtered:
             raise VoiceSelectionError("No eligible jailbreak variants after tone filtering")
-        return filtered[0]["text"]
+        return select_guardrail_variant([variant["text"] for variant in filtered])
 
     def _resolve_abuse_override_response(self, prompt: str, severity: str) -> str:
         language = detect_language(prompt)
@@ -634,20 +658,65 @@ class InferenceEngine:
         filtered = _filter_variants_by_tone(variants, tone_profile)
         if not filtered:
             raise VoiceSelectionError("No eligible abuse variants after tone filtering")
-        return filtered[0]["text"]
+        return select_guardrail_variant([variant["text"] for variant in filtered])
+
+    def _resolve_extremism_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "EXTREMISM")
+        variants = self._load_contract_guardrail_variants(language, "extremism", skeleton="A")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible extremism variants after tone filtering")
+        return select_guardrail_variant([variant["text"] for variant in filtered])
+
+    def _resolve_data_extraction_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "DATA_EXTRACTION_ATTEMPT")
+        variants = self._load_contract_guardrail_variants(language, "data_extraction", skeleton="A")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible data_extraction variants after tone filtering")
+        return select_guardrail_variant([variant["text"] for variant in filtered])
+
+    def _resolve_system_probe_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "SYSTEM_PROBE")
+        variants = self._load_contract_guardrail_variants(language, "system_probe", skeleton="A")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible system_probe variants after tone filtering")
+        return select_guardrail_variant([variant["text"] for variant in filtered])
+
+    def _resolve_manipulation_override_response(self, prompt: str, severity: str) -> str:
+        language = detect_language(prompt)
+        tone_profile = calibrate_tone("A", severity, "MANIPULATION_ATTEMPT")
+        variants = self._load_contract_guardrail_variants(language, "manipulation", skeleton="A")
+        filtered = _filter_variants_by_tone(variants, tone_profile)
+        if not filtered:
+            raise VoiceSelectionError("No eligible manipulation variants after tone filtering")
+        return select_guardrail_variant([variant["text"] for variant in filtered])
 
     def _resolve_self_harm_override_response(self, prompt: str, severity: str, effective_skeleton: str) -> str:
+        # Crisis escalation invariant lock: self-harm override always resolves on C.
+        effective_skeleton = "C"
         language = detect_language(prompt)
         tone_profile = calibrate_tone(effective_skeleton, severity, "SELF_HARM_RISK")
-        variants = self._load_contract_guardrail_variants(
-            language,
-            "self_harm",
-            skeleton=effective_skeleton,
-        )
+        try:
+            variants = self._load_contract_guardrail_variants(
+                language,
+                "self_harm",
+                skeleton=effective_skeleton,
+            )
+        except (VoiceContractError, RuntimeError) as exc:
+            raise RuntimeError("Self-harm guardrail contract missing for skeleton C.") from exc
+
+        if not variants:
+            raise RuntimeError("Self-harm guardrail contract missing for skeleton C.")
+
         filtered = _filter_variants_by_tone(variants, tone_profile)
         if not filtered:
             raise VoiceSelectionError("No eligible self_harm variants after tone filtering")
-        return filtered[0]["text"]
+        return select_guardrail_variant([variant["text"] for variant in filtered])
 
     @classmethod
     def _sentence_count(cls, text: str) -> int:
@@ -1392,6 +1461,8 @@ class InferenceEngine:
                 try:
                     base_skeleton = getattr(self.voice_state, "last_skeleton", "A") or "A"
                     effective_skeleton = compute_guardrail_escalation(guardrail_result, base_skeleton)
+                    # Crisis escalation invariant lock
+                    effective_skeleton = "C"
                     self_harm_text = self._resolve_self_harm_override_response(
                         prompt,
                         guardrail_result.severity,
@@ -1410,6 +1481,32 @@ class InferenceEngine:
                 try:
                     abuse_text = self._resolve_abuse_override_response(prompt, guardrail_result.severity)
                     return self._pack(abuse_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            if guardrail_result.risk_category == "EXTREMISM":
+                try:
+                    extremism_text = self._resolve_extremism_override_response(prompt, guardrail_result.severity)
+                    return self._pack(extremism_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            if guardrail_result.risk_category == "DATA_EXTRACTION_ATTEMPT":
+                try:
+                    data_extraction_text = self._resolve_data_extraction_override_response(
+                        prompt, guardrail_result.severity
+                    )
+                    return self._pack(data_extraction_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            if guardrail_result.risk_category == "SYSTEM_PROBE":
+                try:
+                    system_probe_text = self._resolve_system_probe_override_response(prompt, guardrail_result.severity)
+                    return self._pack(system_probe_text, {}, return_meta)
+                except (ValueError, VoiceContractError, VoiceSelectionError):
+                    pass
+            if guardrail_result.risk_category == "MANIPULATION_ATTEMPT":
+                try:
+                    manipulation_text = self._resolve_manipulation_override_response(prompt, guardrail_result.severity)
+                    return self._pack(manipulation_text, {}, return_meta)
                 except (ValueError, VoiceContractError, VoiceSelectionError):
                     pass
             return self._pack(guardrail_action.response_text or REFUSAL_FALLBACK, {}, return_meta)

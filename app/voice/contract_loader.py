@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from typing import Dict, List, Any
 
+from app.contract_validation import validate_contract_structure
+from app.tone.tone_calibration import TONE_PROFILES
 from app.voice.errors import VoiceContractError
 
 CONTRACT_PATH = Path(__file__).resolve().parents[2] / "docs/persona/voice_contract.json"
@@ -13,7 +15,9 @@ ALLOWED_LANGUAGES = {"en", "hi", "hinglish"}
 
 def get_loader() -> Dict[str, Any]:
     with open(CONTRACT_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        contract = json.load(f)
+    validate_contract_structure(contract, set(TONE_PROFILES))
+    return contract
 
 
 def get_contract_version() -> str:
