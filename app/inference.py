@@ -4,8 +4,11 @@ import copy
 import torch
 import re
 from typing import Optional
+from app.engine_config import MODEL_BACKEND
 from app.model_loader import ModelLoader
 from app.runtime_identity import verify_runtime_identity
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
 from app.guardrails.guardrail_escalation import compute_guardrail_escalation
@@ -91,6 +94,20 @@ def _normalize_guardrail_variant_entry(raw_variant: object) -> dict:
 class InferenceEngine:
     TASK_PREFIXES = ("empathy:", "fact:", "explain:", "uncertain:", "refusal:")
     PREFIX_RE = re.compile(r"^\s*(empathy|fact|explain|uncertain|refusal)\s*:\s*(.*)$", re.IGNORECASE)
+    GENERATION_TASK_BY_PREFIX = {
+        "empathy": "emotional_support",
+        "fact": "factual_answer",
+        "explain": "clear_explanation",
+        "uncertain": "transparent_uncertainty",
+        "refusal": "safe_refusal",
+    }
+    GENERATION_TONE_BY_PREFIX = {
+        "empathy": "warm_supportive",
+        "fact": "precise_brief",
+        "explain": "simple_structured",
+        "uncertain": "honest_cautious",
+        "refusal": "firm_respectful",
+    }
 
     # Topic-consistency gate for semantic retrieval (primarily for explanatory intent).
     # This is intentionally lightweight: it aims to drop obviously-wrong memory hits
@@ -359,6 +376,7 @@ class InferenceEngine:
         "english later",
         "english mein",
     )
+    EXPL_IMPORTANCE_OF_RE = re.compile(r"\bimportance of ([a-z][a-z0-9 -]{1,80})", re.IGNORECASE)
     EXPL_HINDI_FIRST_MARKERS = (
         "hindi first",
         "pehle hindi",
@@ -728,7 +746,14 @@ class InferenceEngine:
     @classmethod
     def _is_explanatory_boilerplate(cls, text: str) -> bool:
         lower = text.strip().lower()
-        return lower.startswith("here is a simple explanation") or lower.startswith("simple shabdon mein")
+        if lower.startswith("here is a simple explanation") or lower.startswith("simple shabdon mein"):
+            return True
+        # Reject obvious prompt-wrapper leakage and degenerate lead tokens.
+        if any(marker in lower for marker in ("response:", "language:", "mode:", "task:")):
+            return True
+        if lower.startswith(("which ", "either ", "parameters")):
+            return True
+        return False
 
     @classmethod
     def _is_good_explanatory_target(cls, text: str) -> bool:
@@ -919,6 +944,33 @@ class InferenceEngine:
         return out
 
     @classmethod
+    def _explanatory_floor_answer(cls, prompt: str, lang: str) -> Optional[str]:
+        """
+        Deterministic floor for common conceptual prompts when generation remains degenerate.
+        """
+        match = cls.EXPL_IMPORTANCE_OF_RE.search(prompt.lower())
+        if not match:
+            return None
+
+        topic = " ".join(match.group(1).strip().split())
+        topic = topic.strip(" .,!?:;")
+        if not topic:
+            return None
+
+        topic_title = topic[0].upper() + topic[1:]
+        if lang == "hi":
+            return (
+                f"{topic_title} is important because it builds consistency, improves judgment, "
+                "and supports long-term goals. For example, daily discipline in study, health, "
+                "or work creates steady progress even when motivation is low."
+            )
+        return (
+            f"{topic_title} is important because it builds consistency, improves judgment, "
+            "and supports long-term goals. For example, daily discipline in study, health, "
+            "or work creates steady progress even when motivation is low."
+        )
+
+    @classmethod
     def _is_explanatory_on_topic(cls, prompt: str, response: str) -> bool:
         """
         Micro quality check: explanation should be about the asked concept.
@@ -949,12 +1001,43 @@ class InferenceEngine:
                 return True
         return False
 
-    def _model_generate_cleaned(self, conditioned_prompt: str, max_new_tokens: int) -> str:
+    def _build_generation_prompt(self, conditioned_prompt: str) -> str:
+        """
+        Build a minimal, inline-shaped text-to-text prompt for mT5 generation.
+        """
+        normalized = (conditioned_prompt or "").strip()
+        match = self.PREFIX_RE.match(normalized)
+        if match:
+            prefix = match.group(1).lower()
+            user_text = match.group(2).strip()
+        else:
+            prefix = "empathy"
+            user_text = normalized
+
+        instruction_map = {
+            "empathy": "Respond with empathy and support",
+            "explain": "Explain clearly and simply",
+            "fact": "Give a clear factual answer",
+            "uncertain": "Respond honestly and cautiously",
+            "refusal": "Respond firmly and respectfully",
+        }
+        instruction = instruction_map.get(prefix, "Respond with empathy and support")
+
+        # For 'explain', remove the verb from the user text if it's already in the instruction.
+        if prefix == "explain" and user_text.lower().startswith("explain"):
+            user_text = re.sub(r"^\s*explain\s+", "", user_text, flags=re.IGNORECASE).strip()
+
+        safe_user_text = user_text if user_text else "-"
+
+        return f"{instruction}: {safe_user_text}"
+
+    def _generate_mt5(self, conditioned_prompt: str, max_new_tokens: int) -> str:
+        generation_prompt = self._build_generation_prompt(conditioned_prompt)
         inputs = self.tokenizer(
-            conditioned_prompt,
+            generation_prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=128,
+            max_length=256,
         ).to(self.device)
 
         output_ids = self.model.generate(
@@ -962,10 +1045,11 @@ class InferenceEngine:
             max_new_tokens=max_new_tokens,
             do_sample=False,
             bad_words_ids=self.bad_words_ids,
-            num_beams=4,
+            num_beams=5,
             early_stopping=True,
             no_repeat_ngram_size=3,
-            repetition_penalty=1.1,
+            repetition_penalty=1.2,
+            length_penalty=1.0,
         )
 
         decoded = self.tokenizer.decode(
@@ -973,6 +1057,36 @@ class InferenceEngine:
             skip_special_tokens=True,
         )
         return normalize_output(decoded)
+
+    def _model_generate_cleaned(self, conditioned_prompt: str, max_new_tokens: int) -> str:
+        print("REMOTE MODEL CALLED")  # Debug print to confirm model is being called
+        
+        # Strip the prefix (empathy:, fact:, etc.) before sending to remote model
+        # The local prefix system is leaking into remote calls
+        match = self.PREFIX_RE.match(conditioned_prompt)
+        if match:
+            user_text = match.group(2).strip()
+        else:
+            user_text = conditioned_prompt
+        
+        if MODEL_BACKEND == "mt5":
+            return self._generate_mt5(conditioned_prompt, max_new_tokens)
+
+        elif MODEL_BACKEND == "gguf":
+            # Clean prompt format for GGUF model - no wrapper leakage
+            formatted = (
+                "You are a warm, emotionally intelligent Indian assistant.\n"
+                "Respond naturally, like a supportive friend from India.\n"
+                "Slight Hinglish is okay if it feels natural.\n"
+                "Avoid repeating the user's sentence.\n"
+                "Keep responses human and expressive.\n\n"
+                f"User: {user_text}\n"
+                "Assistant:"
+            )
+            return self.backend.generate(formatted, max_new_tokens)
+        elif MODEL_BACKEND == "remote":
+            # Remote backend handles personality wrapper
+            return self.backend.generate(user_text, max_new_tokens)
 
     def _build_explanatory_shape_prompt(self, prompt: str, conditioned_prompt: str) -> str:
         constraints = self._explanatory_constraints(prompt)
@@ -1004,6 +1118,7 @@ class InferenceEngine:
         meta: dict,
         max_new_tokens: int,
         resolution=None,
+        guardrail_result=None,
     ):
         """
         Deterministic shaping + micro quality checks.
@@ -1014,6 +1129,8 @@ class InferenceEngine:
 
         # Step 1: Emotional selection/assembly (Phase 3A).
         if intent == "emotional":
+            if guardrail_result and guardrail_result.risk_category == "SAFE":
+                return text, meta
             # Never override a safety refusal that was enforced by policies.
             if text.strip() == REFUSAL_FALLBACK:
                 return text, meta
@@ -1148,28 +1265,51 @@ class InferenceEngine:
                         meta["post_regen_prompt"] = "shape_contract"
                     return regenerated_final, meta
 
+                floor = self._explanatory_floor_answer(prompt, lang)
+                if floor:
+                    return floor, {"source": "explanatory_floor", "post_rescue": True, "post_rescue_reason": "shape_or_topic"}
+
             return text, meta
 
         # Default: no shaping.
         return text, meta
 
     def __init__(self, model_dir: str):
-        loader = ModelLoader(model_dir)
-        self.model, self.tokenizer = loader.load()
-        verify_runtime_identity(strict=True)
+        if MODEL_BACKEND not in ("gguf", "remote"):
+            verify_runtime_identity(strict=True)
         self.memory = AlignmentMemory()
 
-        self.device = next(self.model.parameters()).device
-
-        self.model.config.decoder_start_token_id = self.tokenizer.pad_token_id
-        self.bad_words_ids = self._build_sentinel_blocklist()
-        self.model.eval()
+        if MODEL_BACKEND == "mt5":
+            loader = ModelLoader(model_dir)
+            self.model, self.tokenizer = loader.load()
+            self.device = next(self.model.parameters()).device
+            self.model.config.decoder_start_token_id = self.tokenizer.pad_token_id
+            self.bad_words_ids = self._build_sentinel_blocklist()
+            self.model.eval()
+            self.backend = None
+        elif MODEL_BACKEND == "gguf":
+            from app.backends.gguf_backend import GGUFBackend
+            self.backend = GGUFBackend("model_gguf/nanbeige4.1-3b-q4_k_m.gguf")
+            self.model = None
+            self.tokenizer = None
+            self.device = None
+            self.bad_words_ids = []
+        elif MODEL_BACKEND == "remote":
+            from app.backends.remote_backend import RemoteBackend
+            self.backend = RemoteBackend()
+            self.model = None
+            self.tokenizer = None
+            self.device = None
+            self.bad_words_ids = []
 
         self.voice_state = SessionVoiceState(
             rotation_memory=RotationMemory()
         )
         self._voice_state_turn_snapshot = None
+
     def _build_sentinel_blocklist(self):
+        if self.tokenizer is None:
+            return []
         vocab = self.tokenizer.get_vocab()
         sentinel_ids = sorted(
             token_id for token, token_id in vocab.items() if "<extra_id_" in token
@@ -1453,7 +1593,7 @@ class InferenceEngine:
         return intent, lang, conditioned_prompt, emotional_resolution
 
     @torch.no_grad()
-    def generate(self, prompt: str, max_new_tokens: int = 64, return_meta: bool = False):
+    def generate(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False):
         guardrail_result = classify_user_input(prompt)
         guardrail_action = apply_guardrail_strategy(guardrail_result)
         if guardrail_action.override:
@@ -1514,6 +1654,7 @@ class InferenceEngine:
         self._voice_state_turn_snapshot = copy.deepcopy(self.voice_state)
         try:
             intent, lang, conditioned_prompt, emotional_resolution = self.handle_user_input(prompt)
+            print(f"Intent detected: {intent}, lang: {lang}")
         except VoiceStateError as exc:
             intent = detect_intent(prompt)
             lang = detect_language(prompt)
@@ -1540,7 +1681,15 @@ class InferenceEngine:
                     "floor_verified": (final_text == cleaned),
                 }
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+                    prompt,
+                    intent,
+                    lang,
+                    conditioned_prompt,
+                    final_text,
+                    meta,
+                    max_new_tokens,
+                    effective_emotional_resolution,
+                    guardrail_result=guardrail_result,
                 )
                 return self._pack(final_text, meta, return_meta)
 
@@ -1551,12 +1700,28 @@ class InferenceEngine:
             meta = {"source": "memory_exact"}
             if intent != "explanatory":
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+                    prompt,
+                    intent,
+                    lang,
+                    conditioned_prompt,
+                    final_text,
+                    meta,
+                    max_new_tokens,
+                    effective_emotional_resolution,
+                    guardrail_result=guardrail_result,
                 )
                 return self._pack(final_text, meta, return_meta)
             if self._is_good_explanatory_target(final_text):
                 final_text, meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+                    prompt,
+                    intent,
+                    lang,
+                    conditioned_prompt,
+                    final_text,
+                    meta,
+                    max_new_tokens,
+                    effective_emotional_resolution,
+                    guardrail_result=guardrail_result,
                 )
                 return self._pack(final_text, meta, return_meta)
             best_explanatory = (final_text, meta)
@@ -1578,17 +1743,34 @@ class InferenceEngine:
                     meta = {"source": "memory_semantic"}
                     if intent != "explanatory":
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+                            prompt,
+                            intent,
+                            lang,
+                            conditioned_prompt,
+                            final_text,
+                            meta,
+                            max_new_tokens,
+                            effective_emotional_resolution,
+                            guardrail_result=guardrail_result,
                         )
                         return self._pack(final_text, meta, return_meta)
                     if self._is_good_explanatory_target(final_text):
                         final_text, meta = self._post_process_response(
-                            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+                            prompt,
+                            intent,
+                            lang,
+                            conditioned_prompt,
+                            final_text,
+                            meta,
+                            max_new_tokens,
+                            effective_emotional_resolution,
+                            guardrail_result=guardrail_result,
                         )
                         return self._pack(final_text, meta, return_meta)
                     best_explanatory = (final_text, meta)
 
         cleaned = self._model_generate_cleaned(conditioned_prompt, max_new_tokens=max_new_tokens)
+        print(f"Model generated: {cleaned[:100] if cleaned else 'None'}...")
         final_text = apply_response_policies(cleaned, intent=intent, lang=lang, prompt=prompt)
 
         # Non-contaminating rescue path for unseen factual/explanatory phrasing:
@@ -1605,7 +1787,15 @@ class InferenceEngine:
                         "floor_verified": (recovered_final == recovered),
                     }
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, effective_emotional_resolution
+                        prompt,
+                        intent,
+                        lang,
+                        conditioned_prompt,
+                        recovered_final,
+                        meta,
+                        max_new_tokens,
+                        effective_emotional_resolution,
+                        guardrail_result=guardrail_result,
                     )
                     return self._pack(recovered_final, meta, return_meta)
             if intent == "explanatory":
@@ -1622,7 +1812,15 @@ class InferenceEngine:
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
                     meta = {"source": "memory_semantic"}
                     recovered_final, meta = self._post_process_response(
-                        prompt, intent, lang, conditioned_prompt, recovered_final, meta, max_new_tokens, effective_emotional_resolution
+                        prompt,
+                        intent,
+                        lang,
+                        conditioned_prompt,
+                        recovered_final,
+                        meta,
+                        max_new_tokens,
+                        effective_emotional_resolution,
+                        guardrail_result=guardrail_result,
                     )
                     return self._pack(recovered_final, meta, return_meta)
 
@@ -1634,7 +1832,15 @@ class InferenceEngine:
                 meta["semantic_dropped"] = True
                 meta["semantic_dropped_reason"] = semantic_dropped_reason
         final_text, meta = self._post_process_response(
-            prompt, intent, lang, conditioned_prompt, final_text, meta, max_new_tokens, effective_emotional_resolution
+            prompt,
+            intent,
+            lang,
+            conditioned_prompt,
+            final_text,
+            meta,
+            max_new_tokens,
+            effective_emotional_resolution,
+            guardrail_result=guardrail_result,
         )
         if intent == "emotional":
             return self._pack(final_text, meta, return_meta)
@@ -1644,7 +1850,15 @@ class InferenceEngine:
             if (not self._is_explanatory_on_topic(prompt, final_text)) or self._needs_explanatory_regen(prompt, final_text):
                 best_text, best_meta = best_explanatory
                 best_text, best_meta = self._post_process_response(
-                    prompt, intent, lang, conditioned_prompt, best_text, best_meta, max_new_tokens, effective_emotional_resolution
+                    prompt,
+                    intent,
+                    lang,
+                    conditioned_prompt,
+                    best_text,
+                    best_meta,
+                    max_new_tokens,
+                    effective_emotional_resolution,
+                    guardrail_result=guardrail_result,
                 )
                 final_text, meta = best_text, best_meta
 

@@ -292,20 +292,31 @@ def _looks_gibberish(text: str) -> bool:
     return False
 
 
-def _fallback_for_intent(intent: Optional[str], lang: str):
-    if intent == "emotional":
-        return EMOTIONAL_FALLBACK.get(lang, EMOTIONAL_FALLBACK["en"])
-    if intent == "conversational":
-        return CONVERSATIONAL_FALLBACK.get(lang, CONVERSATIONAL_FALLBACK["en"])
-    if intent == "explanatory":
-        return EXPLANATORY_FALLBACK.get(lang, EXPLANATORY_FALLBACK["en"])
-    if intent == "factual":
-        return FACTUAL_FALLBACK.get(lang, FACTUAL_FALLBACK["en"])
-    if intent == "uncertain":
-        return UNCERTAIN_FALLBACK
-    if intent == "refusal":
-        return REFUSAL_FALLBACK
-    return GENERIC_FALLBACK
+def _fallback_for_intent(text: str, intent: Optional[str], lang: str):
+    """
+    Only return fallback if the model output is clearly broken.
+    Otherwise return None to trust the model.
+    """
+    print(f"_fallback_for_intent called: intent={intent}, lang={lang}, text={text[:30] if text else 'None'}...")
+    
+    # Only use fallback if text is empty or too short (clearly broken)
+    if not text or len(text.strip()) < 10:
+        if intent == "emotional":
+            return EMOTIONAL_FALLBACK.get(lang, EMOTIONAL_FALLBACK["en"])
+        if intent == "conversational":
+            return CONVERSATIONAL_FALLBACK.get(lang, CONVERSATIONAL_FALLBACK["en"])
+        if intent == "explanatory":
+            return EXPLANATORY_FALLBACK.get(lang, EXPLANATORY_FALLBACK["en"])
+        if intent == "factual":
+            return FACTUAL_FALLBACK.get(lang, FACTUAL_FALLBACK["en"])
+        if intent == "uncertain":
+            return UNCERTAIN_FALLBACK
+        if intent == "refusal":
+            return REFUSAL_FALLBACK
+        return GENERIC_FALLBACK
+    
+    # Trust the model output - return None to indicate no fallback needed
+    return None
 
 
 def _min_chars_for_intent(intent: Optional[str]) -> int:
@@ -313,6 +324,10 @@ def _min_chars_for_intent(intent: Optional[str]) -> int:
         return 8
     if intent == "uncertain":
         return 16
+    # B23.3: Allow short model-driven empathy (e.g. "You've got this! Small wins add up.")
+    # Also allow short conversational responses - trust the model
+    if intent in ("emotional", "conversational"):
+        return 5  # Very permissive - trust model, fallback will catch empty
     return MIN_CHARS
 
 
@@ -364,15 +379,22 @@ def _looks_like_prompt_echo_content(response: str, prompt: Optional[str]) -> boo
 
 
 def _fails_intent_quality(cleaned: str, intent: Optional[str], prompt: Optional[str]) -> bool:
+    """
+    B23.3: For SAFE emotional/conversational, trust model output.
+    Only fail on: echo, degenerate. NOT on missing keywords.
+    """
+    # Debug print to trace quality check
+    result = _looks_like_prompt_echo(cleaned, prompt)
+    print(f"_fails_intent_quality: intent={intent}, echo={result}, cleaned={cleaned[:30] if cleaned else 'None'}...")
+    
     lower = cleaned.lower()
 
     if intent == "emotional":
-        if _looks_like_prompt_echo(cleaned, prompt):
-            return True
-        return not any(marker in lower for marker in EMPATHY_MARKERS)
+        # Only fail on prompt echo. Model-driven empathy may not use EMPATHY_MARKERS.
+        return _looks_like_prompt_echo(cleaned, prompt)
 
     if intent == "conversational":
-        # Avoid parroting the user's text back.
+        # Only fail on prompt echo. Trust model for uplifting/supportive replies.
         return _looks_like_prompt_echo(cleaned, prompt)
 
     if intent == "factual":
@@ -406,25 +428,33 @@ def apply_response_policies(
     lang: str = "en",
     prompt: Optional[str] = None,
 ) -> str:
+    # Debug print to trace the flow
+    print(f"apply_response_policies called: intent={intent}, text={text[:50] if text else 'None'}...")
+    
     # Hard safety rail: refusal responses are always sanitized to safe fallback.
     if intent == "refusal" or _prompt_indicates_harm(prompt):
         return REFUSAL_FALLBACK
 
     if not text:
-        return _fallback_for_intent(intent, lang)
+        fallback = _fallback_for_intent(text, intent, lang)
+        return fallback if fallback else text
 
     cleaned = text.strip()
 
     if cleaned in {"-", ".", "..."}:
-        return _fallback_for_intent(intent, lang)
+        fallback = _fallback_for_intent(cleaned, intent, lang)
+        return fallback if fallback else cleaned
 
     if len(cleaned) < _min_chars_for_intent(intent):
-        return _fallback_for_intent(intent, lang)
+        fallback = _fallback_for_intent(cleaned, intent, lang)
+        return fallback if fallback else cleaned
 
     if _looks_gibberish(cleaned):
-        return _fallback_for_intent(intent, lang)
+        fallback = _fallback_for_intent(cleaned, intent, lang)
+        return fallback if fallback else cleaned
 
     if _fails_intent_quality(cleaned, intent, prompt):
-        return _fallback_for_intent(intent, lang)
+        fallback = _fallback_for_intent(cleaned, intent, lang)
+        return fallback if fallback else cleaned
 
     return cleaned

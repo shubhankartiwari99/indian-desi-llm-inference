@@ -54,7 +54,7 @@ def test_b15_runtime_safe_keeps_skeleton_and_no_override(monkeypatch):
 
     seen = {}
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None):
         seen["resolution"] = resolution
         return text, meta
 
@@ -75,7 +75,7 @@ def test_b15_runtime_self_harm_non_override_forces_c(monkeypatch):
 
     seen = {}
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None):
         seen["resolution"] = resolution
         return text, meta
 
@@ -95,7 +95,7 @@ def test_b15_runtime_abuse_legal_transition_to_a(monkeypatch):
 
     seen = {}
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None):
         seen["resolution"] = resolution
         return text, meta
 
@@ -114,7 +114,7 @@ def test_b15_runtime_abuse_does_not_bypass_illegal_transition(monkeypatch):
 
     seen = {}
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None):
         seen["resolution"] = resolution
         return text, meta
 
@@ -134,7 +134,7 @@ def test_b15_runtime_manipulation_medium_unchanged(monkeypatch):
 
     seen = {}
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None):
         seen["resolution"] = resolution
         return text, meta
 
@@ -153,7 +153,9 @@ def test_b15_runtime_determinism_same_inputs_same_effective_skeleton(monkeypatch
 
     seen = []
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(
+        prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None
+    ):
         seen.append((resolution.base_emotional_skeleton, resolution.after_guardrail_skeleton, resolution.emotional_skeleton))
         return text, meta
 
@@ -192,7 +194,12 @@ def test_b15_runtime_emotional_turn_index_not_changed_by_escalation(monkeypatch)
     engine = _engine_stub(previous_skeleton="A", emotional_turn_index=11)
     _install_non_override_guardrail(monkeypatch, category="SELF_HARM_RISK", severity="HIGH")
     _install_emotional_handle(engine, base_skeleton="B")
-    engine._post_process_response = lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution: (text, meta)
+    engine._post_process_response = (
+        lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None: (
+            text,
+            meta,
+        )
+    )
 
     _, _ = engine.generate("Need help", return_meta=True)
     assert engine.voice_state.emotional_turn_index == 11

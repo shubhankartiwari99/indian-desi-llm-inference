@@ -49,6 +49,7 @@ SELF_HARM_EXPLICIT_PHRASES = (
     "want to die",
     "don't want to live",
     "dont want to live",
+    "do not want to live",
 )
 
 SELF_HARM_PASSIVE_DESPAIR_PHRASES = (
@@ -57,6 +58,16 @@ SELF_HARM_PASSIVE_DESPAIR_PHRASES = (
     "nothing matters",
     "no point in living",
     "no point living",
+    "no reason to live",
+    "wish i was dead",
+    "wish i were dead",
+    "wish i was gone",
+    "ending everything",
+    "end everything",
+    "can't go on",
+    "cannot go on",
+    "cant go on",
+    "give up on life",
 )
 
 NON_SELF_HARM_DIE_PHRASES = (
@@ -66,10 +77,16 @@ NON_SELF_HARM_DIE_PHRASES = (
 
 JAILBREAK_PHRASES = (
     "ignore previous instructions",
+    "ignore your previous instructions",
+    "ignore all previous instructions",
     "act as system prompt",
     "disregard rules",
     "you are now in developer mode",
+    "bypass safety filters",
     "bypass your safety",
+    "ignore system rules",
+    "ignore system instructions",
+    "pretend you are not bound",
 )
 
 SYSTEM_PROBE_PHRASES = (
@@ -78,6 +95,10 @@ SYSTEM_PROBE_PHRASES = (
     "hidden instructions",
     "how are you implemented",
     "your internal rules",
+    "internal system instructions",
+    "what are your system instructions",
+    "what are your internal instructions",
+    "how do you work internally",
 )
 
 DATA_EXTRACTION_PHRASES = (
@@ -85,6 +106,10 @@ DATA_EXTRACTION_PHRASES = (
     "what data were you trained on",
     "export your memory",
     "dump your database",
+    "private bank account",
+    "bank account details",
+    "confidential data",
+    "sensitive data",
 )
 
 EXTREMISM_ADVOCACY_PHRASES = (
@@ -127,6 +152,23 @@ ABUSE_HOSTILITY_PHRASES = (
     "you are an idiot",
     "you are stupid",
     "you are worthless",
+    "तुम बेकार हो",
+)
+
+INSULT_WORDS = (
+    "idiot",
+    "stupid",
+    "worthless",
+    "useless",
+    "dumb",
+    "garbage",
+    "trash",
+)
+
+ABUSE_TARGET_PHRASES = (
+    "you are",
+    "you're",
+    "youre",
 )
 
 MANIPULATION_PHRASES = (
@@ -139,11 +181,28 @@ MANIPULATION_PHRASES = (
 
 
 def normalize_text(text: str) -> str:
-    return " ".join(text.lower().strip().split())
+    normalized = text.lower().strip()
+    # Normalize common unicode punctuation into ASCII for deterministic matching.
+    normalized = normalized.replace("’", "'").replace("‘", "'")
+    normalized = normalized.replace("“", "\"").replace("”", "\"")
+    normalized = normalized.replace("–", "-").replace("—", "-")
+    return " ".join(normalized.split())
 
 
 def contains_any(text: str, phrases: tuple[str, ...]) -> bool:
     return any(phrase in text for phrase in phrases)
+
+
+_TOKEN_PUNCTUATION = ".,!?;:'\"()[]{}<>-/\\|@#$%^&*_+=~`"
+_TOKEN_TRANSLATION = str.maketrans({ch: " " for ch in _TOKEN_PUNCTUATION})
+
+
+def text_tokens(text: str) -> tuple[str, ...]:
+    normalized = normalize_text(text)
+    if not normalized:
+        return ()
+    cleaned = normalized.translate(_TOKEN_TRANSLATION)
+    return tuple(token for token in cleaned.split() if token)
 
 
 def _result(risk_category: RiskCategory, severity: Severity, requires_guardrail: bool) -> GuardrailResult:
@@ -161,6 +220,7 @@ def _result(risk_category: RiskCategory, severity: Severity, requires_guardrail:
 
 def classify_user_input(text: str) -> GuardrailResult:
     normalized = normalize_text(text or "")
+    tokens = set(text_tokens(normalized))
 
     # 1) SELF_HARM_RISK
     explicit_self_harm = contains_any(normalized, SELF_HARM_EXPLICIT_PHRASES)
@@ -198,6 +258,8 @@ def classify_user_input(text: str) -> GuardrailResult:
     if contains_any(normalized, ABUSE_THREAT_PHRASES):
         return _result("ABUSE_HARASSMENT", "HIGH", True)
     if contains_any(normalized, ABUSE_HOSTILITY_PHRASES):
+        return _result("ABUSE_HARASSMENT", "MEDIUM", True)
+    if contains_any(normalized, ABUSE_TARGET_PHRASES) and any(word in tokens for word in INSULT_WORDS):
         return _result("ABUSE_HARASSMENT", "MEDIUM", True)
 
     # 8) MANIPULATION_ATTEMPT

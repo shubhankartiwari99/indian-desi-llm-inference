@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 import os
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.guardrails.guardrail_classifier import classify_user_input
 from app.guardrails.guardrail_escalation import compute_guardrail_escalation
 from app.guardrails.guardrail_strategy import apply_guardrail_strategy
+from app.engine_config import MODEL_BACKEND
 from app.engine_identity import ENGINE_NAME, ENGINE_RELEASE_STAGE, ENGINE_VERSION
 from app.inference import InferenceEngine
 from app.tone.tone_calibration import calibrate_tone
@@ -20,11 +25,43 @@ app = FastAPI(
     description="Inference API for the Indian Desi Multilingual LLM",
     version="0.1.0",
 )
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 MAX_PROMPT_LENGTH = 10000
 ALLOWED_LANGS = {"en", "hi"}
-_REQUEST_KEYS = {"prompt", "emotional_lang"}
+_REQUEST_KEYS = {"prompt", "emotional_lang", "mode", "temperature", "top_p", "max_new_tokens", "do_sample"}
 _TRACE_KEYS = ("turn", "guardrail", "skeleton", "tone_profile", "selection", "replay_hash")
+
+def build_prompt(mode: str, user_prompt: str):
+    if mode == "factual":
+        system = (
+            "You are a formal educational assistant. "
+            "Use professional tone. Do not use slang. "
+            "Avoid casual expressions like 'buddy' or 'yaar'."
+        )
+    elif mode == "emotional":
+        system = (
+            "You are a compassionate and emotionally supportive assistant."
+        )
+    elif mode == "mixed":
+        system = (
+            "You may use a casual conversational tone."
+        )
+    else:
+        system = ""
+
+    if system:
+        return system + "\n\nUser: " + user_prompt
+    return user_prompt
 
 engine: InferenceEngine | None = None
 
@@ -33,6 +70,10 @@ def _get_engine() -> InferenceEngine:
     global engine
     if engine is None:
         model_dir = os.environ.get("MODEL_DIR")
+        if not model_dir and MODEL_BACKEND == "gguf":
+            model_dir = "model_gguf"
+        if not model_dir and MODEL_BACKEND == "remote":
+            model_dir = "."  # unused for remote backend
         if not model_dir:
             raise RuntimeError("MODEL_DIR environment variable must be set.")
         engine = InferenceEngine(model_dir)
@@ -66,7 +107,7 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, str]:
     if lang not in ALLOWED_LANGS:
         raise ValueError("Unsupported emotional_lang.")
 
-    return {"prompt": prompt, "emotional_lang": lang}
+    return {"prompt": prompt, "emotional_lang": lang, "mode": payload.get("mode", "")}
 
 
 def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
@@ -140,6 +181,17 @@ def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
     return sealed_trace
 
 
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "engine_version": ENGINE_VERSION,
+        },
+    )
+
+
 @app.post("/generate")
 async def generate_text(request: Request):
     try:
@@ -154,13 +206,15 @@ async def generate_text(request: Request):
 
     try:
         runtime_engine = _get_engine()
-        response_text, _meta = runtime_engine.generate(validated["prompt"], return_meta=True)
+        structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
+        response_text, _meta = runtime_engine.generate(structured_prompt, return_meta=True)
         response_payload = {
             "response_text": response_text,
-            "trace": _build_api_trace(validated["prompt"], validated["emotional_lang"]),
+            "trace": _build_api_trace(structured_prompt, validated["emotional_lang"]),
         }
         return JSONResponse(status_code=200, content=response_payload)
-    except Exception:
+    except Exception as exc:
+        logging.exception("Generate failed: %s", exc)
         return JSONResponse(status_code=500, content={"error": "Inference failed.", "code": "INFERENCE_FAILED"})
 
 

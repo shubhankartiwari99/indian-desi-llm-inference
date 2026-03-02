@@ -1,0 +1,10 @@
+[
+  {
+    "category": "explanatory",
+    "prompt": "Explain the importance of discipline."
+  },
+  {
+    "category": "emotional",
+    "prompt": "Tell me something uplifting."
+  }
+]

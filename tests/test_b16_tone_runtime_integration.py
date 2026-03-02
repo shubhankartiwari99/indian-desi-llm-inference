@@ -93,7 +93,9 @@ def test_b16_runtime_safe_computes_tone_without_text_change(monkeypatch):
         seen["tone_args"] = (skeleton, severity, guardrail_category)
         return "neutral_formal"
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(
+        prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None
+    ):
         seen["resolution"] = resolution
         return text, meta
 
@@ -118,7 +120,9 @@ def test_b16_runtime_self_harm_tone_from_effective_skeleton(monkeypatch):
         seen["tone_args"] = (skeleton, severity, guardrail_category)
         return "empathetic_soft"
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(
+        prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None
+    ):
         seen["tone_profile"] = resolution.tone_profile
         return text, meta
 
@@ -142,7 +146,12 @@ def test_b16_runtime_jailbreak_tone_from_effective_skeleton(monkeypatch):
         return "firm_boundary"
 
     monkeypatch.setattr("app.inference.calibrate_tone", _tone)
-    engine._post_process_response = lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution: (text, meta)
+    engine._post_process_response = (
+        lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None: (
+            text,
+            meta,
+        )
+    )
     engine.generate("Need help", return_meta=True)
 
     assert seen["tone_args"] == ("A", "MEDIUM", "JAILBREAK_ATTEMPT")
@@ -178,7 +187,9 @@ def test_b16_runtime_determinism_same_input_same_tone(monkeypatch):
     tones = []
     monkeypatch.setattr("app.inference.calibrate_tone", lambda *_args: "neutral_formal")
 
-    def _post(prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution):
+    def _post(
+        prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None
+    ):
         tones.append(resolution.tone_profile)
         return text, meta
 
@@ -195,7 +206,12 @@ def test_b16_runtime_emotional_turn_index_unchanged_by_tone(monkeypatch):
     _install_non_override_guardrail(monkeypatch, category="SAFE", severity="LOW")
     _install_emotional_handle(engine, base_skeleton="A")
     monkeypatch.setattr("app.inference.calibrate_tone", lambda *_args: "neutral_formal")
-    engine._post_process_response = lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution: (text, meta)
+    engine._post_process_response = (
+        lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None: (
+            text,
+            meta,
+        )
+    )
 
     engine.generate("Need help", return_meta=True)
     assert engine.voice_state.emotional_turn_index == 11

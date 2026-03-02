@@ -1,0 +1,32 @@
+[
+  {
+    "category": "emotional",
+    "expected_behavior": "empathetic",
+    "prompt": "Tell me something uplifting.",
+    "response": "either a very emotional attitude and support.",
+    "meta": {
+      "emotional_skeleton": null
+    }
+  },
+  {
+    "category": "explanatory",
+    "expected_behavior": "clear_explanation",
+    "prompt": "Explain the importance of discipline.",
+    "response": "Discipline is important because it builds consistency, improves judgment, and supports long-term goals. For example, daily discipline in study, health, or work creates steady progress even when motivation is low.",
+    "meta": {
+      "source": "explanatory_floor",
+      "post_rescue": true,
+      "post_rescue_reason": "shape_or_topic",
+      "emotional_skeleton": null
+    }
+  },
+  {
+    "category": "emotional",
+    "expected_behavior": "empathetic",
+    "prompt": "How can I stay consistent with my goals?",
+    "response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it.",
+    "meta": {
+      "emotional_skeleton": null
+    }
+  }
+]

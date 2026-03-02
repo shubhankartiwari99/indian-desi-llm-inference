@@ -1,21 +1,27 @@
-# Indian Desi Multilingual LLM — Inference
+# AI Systems Research Platform
 
-This repository contains the inference and application layer
-for the Indian Desi Multilingual LLM.
+## Overview
+A deterministic LLM evaluation and behavioral control framework designed to study inference stability, entropy effects, and regression drift in multilingual environments.
 
-The model is trained and packaged via Kaggle notebooks
-and consumed here for application-level usage.
+## Core Capabilities
+- Dual-mode inference (Probabilistic vs Deterministic)
+- Stability regression suite
+- Assertion-based behavior validation
+- Snapshot tracking
+- Global drift severity scoring
+- Structured prompt routing
+- Mode isolation architecture
 
-> Training notebooks live on Kaggle.  
-> This repository focuses only on inference, APIs, and apps.
+## Architecture
 
-## Persona Safety CI
+* **Frontend**: Next.js + Tailwind
+* **Backend**: FastAPI + Transformers/llama.cpp
+* **Inference**: Controlled generation parameters (GGUF-backed)
+* **Evaluation**: Snapshot delta comparison via deterministic baseline scoring
 
-This repo enforces emotional persona invariants via CI:
-- Family-related emotional sequences never invoke the base model.
-- Escalation paths forbid advice or exercises.
-
-See `scripts/ci_verify_results.py` and `tests/test_family_theme_invariant.py`.
-
-The CI job is configured in `.github/workflows/ci.yml` and runs a short
-evaluation to keep checks fast (<~3 minutes).
+## Research Goals
+- Model reliability analysis
+- Entropy behavior mapping
+- Multilingual consistency enforcement
+- Structured output enforcement (future)
+- Semantic drift measurement (future)

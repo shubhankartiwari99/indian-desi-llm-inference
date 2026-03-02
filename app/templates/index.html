@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Desi LLM</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="container">
+        <h1>Indian Desi LLM</h1>
+        <div class="version">v{{ engine_version }}</div>
+
+        <section class="controls">
+            <div class="field-label">Language</div>
+            <div class="lang-toggle" role="radiogroup" aria-label="Language">
+                <label>
+                    <input type="radio" name="lang" value="en" checked>
+                    EN
+                </label>
+                <label>
+                    <input type="radio" name="lang" value="hi">
+                    HI
+                </label>
+            </div>
+
+            <label class="field-label" for="prompt">Prompt</label>
+            <textarea id="prompt" placeholder="Enter your prompt..."></textarea>
+
+            <button id="generate-btn" type="button" onclick="generate()">Generate</button>
+        </section>
+
+        <section>
+            <div class="section-title">Response</div>
+            <div id="response" class="response"></div>
+        </section>
+
+        <section class="trace-section">
+            <button id="details-toggle" type="button" onclick="toggleDetails()">Show Details</button>
+            <div id="details" class="details" hidden>
+                <pre id="trace"></pre>
+                <button id="advanced-toggle" type="button" onclick="toggleAdvanced()">Advanced</button>
+                <pre id="advanced" hidden></pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    let currentTrace = null;
+
+    function selectedLang() {
+        return document.querySelector('input[name="lang"]:checked').value;
+    }
+
+    function resetTraceView() {
+        const details = document.getElementById("details");
+        const advanced = document.getElementById("advanced");
+        const detailsToggle = document.getElementById("details-toggle");
+        const advancedToggle = document.getElementById("advanced-toggle");
+
+        details.hidden = true;
+        advanced.hidden = true;
+        detailsToggle.innerText = "Show Details";
+        advancedToggle.innerText = "Advanced";
+    }
+
+    function renderTrace() {
+        if (!currentTrace) {
+            document.getElementById("trace").innerText = "";
+            document.getElementById("advanced").innerText = "";
+            return;
+        }
+
+        const trace = currentTrace;
+        const toneProfile = trace.tone_profile || "-";
+        const baseSkeleton = (trace.skeleton && trace.skeleton.base) || "-";
+        const resolvedSkeleton = (trace.skeleton && trace.skeleton.after_guardrail) || "-";
+
+        const formatted = [
+            `Language: ${(trace.turn && trace.turn.emotional_lang) || "-"}`,
+            `Guardrail Category: ${(trace.guardrail && trace.guardrail.risk_category) || "-"}`,
+            `Severity: ${(trace.guardrail && trace.guardrail.severity) || "-"}`,
+            `Skeleton: ${baseSkeleton} -> ${resolvedSkeleton}`,
+            `Tone Profile: ${toneProfile}`
+        ].join("\n");
+
+        document.getElementById("trace").innerText = formatted;
+        document.getElementById("advanced").innerText = `Replay Hash: ${trace.replay_hash || "-"}`;
+    }
+
+    async function generate() {
+        const prompt = document.getElementById("prompt").value;
+        const responseEl = document.getElementById("response");
+        const button = document.getElementById("generate-btn");
+
+        responseEl.classList.remove("error");
+        responseEl.innerText = "Generating...";
+        resetTraceView();
+
+        button.disabled = true;
+
+        try {
+            const res = await fetch("/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt,
+                    emotional_lang: selectedLang()
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                const errorCode = data.code ? ` [${data.code}]` : "";
+                responseEl.classList.add("error");
+                responseEl.innerText = `${data.error || "Request failed."}${errorCode}`;
+                currentTrace = null;
+                renderTrace();
+                return;
+            }
+
+            responseEl.innerText = data.response_text || "";
+            currentTrace = data.trace || null;
+            renderTrace();
+        } catch (_err) {
+            responseEl.classList.add("error");
+            responseEl.innerText = "Inference failed. [INFERENCE_FAILED]";
+            currentTrace = null;
+            renderTrace();
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function toggleDetails() {
+        const details = document.getElementById("details");
+        const detailsToggle = document.getElementById("details-toggle");
+
+        details.hidden = !details.hidden;
+        detailsToggle.innerText = details.hidden ? "Show Details" : "Hide Details";
+    }
+
+    function toggleAdvanced() {
+        const advanced = document.getElementById("advanced");
+        const advancedToggle = document.getElementById("advanced-toggle");
+
+        advanced.hidden = !advanced.hidden;
+        advancedToggle.innerText = advanced.hidden ? "Advanced" : "Hide Advanced";
+    }
+    </script>
+</body>
+</html>

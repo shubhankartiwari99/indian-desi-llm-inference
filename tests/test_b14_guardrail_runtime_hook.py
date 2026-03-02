@@ -62,7 +62,10 @@ def test_safe_path_continues_inference_flow(monkeypatch):
 
     engine.handle_user_input = _handle
     engine.memory = _MemoryStub("I hear you. That sounds tough. I'm here for you.")
-    engine._post_process_response = lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution: (text, meta)
+    engine._post_process_response = lambda prompt, intent, lang, conditioned_prompt, text, meta, max_new_tokens, resolution, guardrail_result=None: (
+        text,
+        meta,
+    )
 
     output, meta = engine.generate("Hello", return_meta=True)
     assert output == "I hear you. That sounds tough. I'm here for you."

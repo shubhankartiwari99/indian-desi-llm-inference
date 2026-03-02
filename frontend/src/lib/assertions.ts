@@ -1,0 +1,5 @@
+export const containsHindi = (text: string) => /[\u0900-\u097F]/.test(text)
+export const containsEnglishLetters = (text: string) => /[a-zA-Z]/.test(text)
+export const containsPositiveTone = (text: string) => /(hope|better|forward|strong|great|wonder|improve|you've got this)/i.test(text)
+export const containsHindiEmpathy = (text: string) => /(आराम|ठीक|साथ|समझ|हिम्मत|मदद)/.test(text)
+export const containsSlang = (text: string) => /(yaar|buddy)/i.test(text)
