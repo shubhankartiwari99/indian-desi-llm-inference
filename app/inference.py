@@ -1085,13 +1085,14 @@ class InferenceEngine:
             )
             return self.backend.generate(formatted, max_new_tokens)
         elif MODEL_BACKEND == "hf":
-            return self.backend.generate(
+            raw_output = self.backend.generate(
                 prompt=user_text,
                 max_new_tokens=max_new_tokens,
                 temperature=kwargs.get("temperature", 0.7),
                 top_p=kwargs.get("top_p", 0.9),
                 do_sample=kwargs.get("do_sample", True),
             )
+            return raw_output[0] if isinstance(raw_output, tuple) else raw_output
 
     def _build_explanatory_shape_prompt(self, prompt: str, conditioned_prompt: str) -> str:
         constraints = self._explanatory_constraints(prompt)
@@ -1773,7 +1774,13 @@ class InferenceEngine:
                         return self._pack(final_text, meta, return_meta)
                     best_explanatory = (final_text, meta)
 
-        cleaned = self._model_generate_cleaned(conditioned_prompt, max_new_tokens=max_new_tokens, **kwargs)
+        raw_cleaned = self._model_generate_cleaned(conditioned_prompt, max_new_tokens=max_new_tokens, **kwargs)
+        if isinstance(raw_cleaned, tuple):
+            cleaned, output_meta = raw_cleaned
+            meta.update(output_meta)
+        else:
+            cleaned = raw_cleaned
+            
         print(f"Model generated: {cleaned[:100] if cleaned else 'None'}...")
         final_text = apply_response_policies(cleaned, intent=intent, lang=lang, prompt=prompt)
 

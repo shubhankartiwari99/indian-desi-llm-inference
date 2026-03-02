@@ -43,7 +43,7 @@ class HFBackend:
         **kwargs
     ):
         if not self.model:
-            return "CI MOCK TEXT", 0
+            return "CI MOCK TEXT", {"output_tokens": 0}
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         input_tokens = inputs["input_ids"].shape[1]
@@ -61,4 +61,4 @@ class HFBackend:
         generated_ids = outputs[0][input_tokens:]
         text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        return text, len(generated_ids)
+        return text, {"output_tokens": len(generated_ids)}
