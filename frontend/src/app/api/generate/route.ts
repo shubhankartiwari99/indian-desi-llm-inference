@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const ENDPOINT = "http://localhost:8000/generate";
+const ENDPOINT = "https://michal-unboarded-erna.ngrok-free.dev/generate";
 
 export async function POST(req: Request) {
     try {

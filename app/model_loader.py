@@ -1,5 +1,8 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from peft import PeftModel
+try:
+    from peft import PeftModel
+except ImportError:
+    PeftModel = None
 import torch
 from pathlib import Path
 import json
@@ -71,6 +74,8 @@ class ModelLoader:
         adapter_weights_bin = self.adapter_dir / "adapter_model.bin"
         has_adapter = adapter_config.is_file() and (adapter_weights.is_file() or adapter_weights_bin.is_file())
         if has_adapter:
+            if PeftModel is None:
+                raise RuntimeError("Adapter config found, but 'peft' library is not installed.")
             model = PeftModel.from_pretrained(
                 base_model,
                 str(self.adapter_dir),
