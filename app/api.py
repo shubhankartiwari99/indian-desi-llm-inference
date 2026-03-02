@@ -19,6 +19,7 @@ from app.engine_config import MODEL_BACKEND
 from app.engine_identity import ENGINE_NAME, ENGINE_RELEASE_STAGE, ENGINE_VERSION
 from app.inference import InferenceEngine
 from app.tone.tone_calibration import calibrate_tone
+from app.intelligence.dual_plane import evaluate_dual_plane
 
 app = FastAPI(
     title="Indian Desi Multilingual LLM",
@@ -207,11 +208,57 @@ async def generate_text(request: Request):
     try:
         runtime_engine = _get_engine()
         structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
-        response_text, _meta = runtime_engine.generate(structured_prompt, return_meta=True)
+        
+        # Deterministic
+        det_response_text, det_meta = runtime_engine.generate(
+            structured_prompt, 
+            return_meta=True, 
+            temperature=0.0, 
+            top_p=1.0, 
+            do_sample=False,
+            # Inherit max_new_tokens if passed in validation
+            max_new_tokens=payload.get("max_new_tokens", 128)
+        )
+        
+        # Entropy run
+        ent_response_text, ent_meta = runtime_engine.generate(
+            structured_prompt, 
+            return_meta=True,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+            max_new_tokens=payload.get("max_new_tokens", 128)
+        )
+        
+        # Calculate semantic instability
+        det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
+        ent_token_count = ent_meta.get("output_tokens", len(ent_response_text.split()))
+        
+        analysis = evaluate_dual_plane(
+            det_response_text,
+            ent_response_text,
+            det_token_count,
+            ent_token_count
+        )
+
         response_payload = {
-            "response_text": response_text,
+            "response_text": det_response_text,
+            "latency_ms": det_meta.get("latency_ms", 0),
+            "input_tokens": det_meta.get("input_tokens", 0),
+            "output_tokens": det_token_count,
+            "confidence": analysis["confidence"],
+            "instability": analysis["instability"],
+            "escalate": analysis["escalate"],
             "trace": _build_api_trace(structured_prompt, validated["emotional_lang"]),
         }
+        
+        if analysis["escalate"]:
+            response_payload["review_packet"] = {
+                "entropy_output": ent_response_text,
+                "embedding_similarity": analysis["embedding_similarity"],
+                "ambiguity": analysis["ambiguity"],
+            }
+            
         return JSONResponse(status_code=200, content=response_payload)
     except Exception as exc:
         logging.exception("Generate failed: %s", exc)
