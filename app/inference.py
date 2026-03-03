@@ -1125,6 +1125,7 @@ class InferenceEngine:
         max_new_tokens: int,
         resolution=None,
         guardrail_result=None,
+        **kwargs,
     ):
         """
         Deterministic shaping + micro quality checks.
@@ -1696,6 +1697,7 @@ class InferenceEngine:
                     max_new_tokens,
                     effective_emotional_resolution,
                     guardrail_result=guardrail_result,
+                    **kwargs,
                 )
                 return self._pack(final_text, meta, return_meta)
 
@@ -1715,6 +1717,7 @@ class InferenceEngine:
                     max_new_tokens,
                     effective_emotional_resolution,
                     guardrail_result=guardrail_result,
+                    **kwargs,
                 )
                 return self._pack(final_text, meta, return_meta)
             if self._is_good_explanatory_target(final_text):
@@ -1728,6 +1731,7 @@ class InferenceEngine:
                     max_new_tokens,
                     effective_emotional_resolution,
                     guardrail_result=guardrail_result,
+                    **kwargs,
                 )
                 return self._pack(final_text, meta, return_meta)
             best_explanatory = (final_text, meta)
@@ -1758,6 +1762,7 @@ class InferenceEngine:
                             max_new_tokens,
                             effective_emotional_resolution,
                             guardrail_result=guardrail_result,
+                            **kwargs,
                         )
                         return self._pack(final_text, meta, return_meta)
                     if self._is_good_explanatory_target(final_text):
@@ -1771,6 +1776,7 @@ class InferenceEngine:
                             max_new_tokens,
                             effective_emotional_resolution,
                             guardrail_result=guardrail_result,
+                            **kwargs,
                         )
                         return self._pack(final_text, meta, return_meta)
                     best_explanatory = (final_text, meta)
@@ -1815,6 +1821,7 @@ class InferenceEngine:
                         max_new_tokens,
                         effective_emotional_resolution,
                         guardrail_result=guardrail_result,
+                        **kwargs,
                     )
                     return self._pack(recovered_final, meta, return_meta)
             if intent == "explanatory":
@@ -1840,6 +1847,7 @@ class InferenceEngine:
                         max_new_tokens,
                         effective_emotional_resolution,
                         guardrail_result=guardrail_result,
+                        **kwargs,
                     )
                     return self._pack(recovered_final, meta, return_meta)
 
@@ -1860,6 +1868,7 @@ class InferenceEngine:
             max_new_tokens,
             effective_emotional_resolution,
             guardrail_result=guardrail_result,
+            **kwargs,
         )
         if intent == "emotional":
             return self._pack(final_text, meta, return_meta)
@@ -1878,6 +1887,7 @@ class InferenceEngine:
                     max_new_tokens,
                     effective_emotional_resolution,
                     guardrail_result=guardrail_result,
+                    **kwargs,
                 )
                 final_text, meta = best_text, best_meta
 
