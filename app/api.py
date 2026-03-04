@@ -5,6 +5,7 @@ import logging
 import json
 import os
 import datetime
+import threading
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -67,21 +68,46 @@ def build_prompt(mode: str, user_prompt: str):
         return system + "\n\nUser: " + user_prompt
     return user_prompt
 
-engine: InferenceEngine | None = None
+_engine: InferenceEngine | None = None
+_engine_lock = threading.Lock()
+_engine_initialized = False
+
+
+def _resolve_model_dir() -> str:
+    model_dir = os.environ.get("MODEL_DIR")
+    if not model_dir and MODEL_BACKEND == "gguf":
+        model_dir = "model_gguf"
+    if not model_dir and MODEL_BACKEND == "remote":
+        model_dir = "."  # unused for remote backend
+    if not model_dir:
+        raise RuntimeError("MODEL_DIR environment variable must be set.")
+    return model_dir
+
+
+def _initialize_engine_once() -> InferenceEngine:
+    global _engine
+    global _engine_initialized
+
+    if _engine is not None:
+        return _engine
+
+    with _engine_lock:
+        if _engine is not None:
+            return _engine
+
+        model_dir = _resolve_model_dir()
+        logging.info("Loading inference engine...")
+        _engine = InferenceEngine(model_dir)
+        _engine_initialized = True
+        logging.info("Inference engine ready.")
+
+    return _engine
 
 
 def _get_engine() -> InferenceEngine:
-    global engine
-    if engine is None:
-        model_dir = os.environ.get("MODEL_DIR")
-        if not model_dir and MODEL_BACKEND == "gguf":
-            model_dir = "model_gguf"
-        if not model_dir and MODEL_BACKEND == "remote":
-            model_dir = "."  # unused for remote backend
-        if not model_dir:
-            raise RuntimeError("MODEL_DIR environment variable must be set.")
-        engine = InferenceEngine(model_dir)
-    return engine
+    if _engine is None:
+        raise RuntimeError("Inference engine not initialized")
+    return _engine
 
 
 def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
@@ -245,9 +271,26 @@ def index(request: Request):
     )
 
 
+@app.on_event("startup")
+def load_engine_on_startup():
+    # Tests can disable eager load and inject their own stub engine.
+    if os.environ.get("SKIP_ENGINE_STARTUP") == "1" or os.environ.get("PYTEST_CURRENT_TEST"):
+        logging.info("Skipping startup engine initialization.")
+        return
+
+    _initialize_engine_once()
+
+
 @app.get("/health")
 def health_check():
-    return JSONResponse(status_code=200, content={"status": "ok", "version": ENGINE_VERSION})
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "ok",
+            "version": ENGINE_VERSION,
+            "engine_ready": _engine_initialized,
+        },
+    )
 
 
 @app.post("/generate")
@@ -264,6 +307,11 @@ async def generate_text(request: Request):
 
     try:
         runtime_engine = _get_engine()
+    except RuntimeError as exc:
+        logging.exception("Engine not ready: %s", exc)
+        return JSONResponse(status_code=503, content={"error": str(exc), "code": "ENGINE_NOT_READY"})
+
+    try:
         structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
         
         # Deterministic
