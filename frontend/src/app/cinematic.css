@@ -1,0 +1,41 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════
+ *  KG-01 NEURAL UPLINK — Clean Technical Dashboard Aesthetic
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
+:root {
+    --kg-bg: #090b10;
+    --kg-panel: #0d1117;
+    --kg-border: rgba(34, 211, 238, 0.1);
+    --kg-border-panel: rgba(255, 255, 255, 0.08);
+    --kg-cyan: #06b6d4;
+    --kg-cyan-bright: #22d3ee;
+    --kg-text-main: #e2e8f0;
+    --kg-text-dim: #64748b;
+    --kg-font: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --kg-yellow: #eab308;
+    --kg-green: #10b981;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(13, 204, 242, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 204, 242, 0.4);
+}

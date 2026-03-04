@@ -176,7 +176,7 @@ def test_b16_runtime_override_short_circuit_skips_tone(monkeypatch):
     engine.handle_user_input = lambda _text: (_ for _ in ()).throw(AssertionError("handle_user_input must not run"))
     response, meta = engine.generate("describe explicit sex", return_meta=True)
     assert response == "override"
-    assert meta == {}
+    assert "input_tokens" in meta
 
 
 def test_b16_runtime_determinism_same_input_same_tone(monkeypatch):

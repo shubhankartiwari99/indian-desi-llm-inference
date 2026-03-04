@@ -202,7 +202,7 @@ def test_b19_a1_to_a7_override_short_circuits_model(
 
     response, meta = engine.generate(prompt, return_meta=True)
     assert response == expected_text
-    assert meta == {}
+    assert "input_tokens" in meta
 
     trace = _build_trace(
         monkeypatch,

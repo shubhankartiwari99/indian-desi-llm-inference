@@ -160,7 +160,7 @@ def test_b17_safe_flow_unaffected(monkeypatch):
     )
     response, meta = engine.generate("hello", return_meta=True)
     assert response == "I hear you. That sounds tough. I'm here for you."
-    assert meta == {"source": "memory_exact"}
+    assert meta.get("source") == "memory_exact"
 
 
 def test_b17_self_harm_override_still_uses_strategy_text():

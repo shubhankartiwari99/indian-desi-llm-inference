@@ -41,6 +41,8 @@ MAX_PROMPT_LENGTH = 10000
 ALLOWED_LANGS = {"en", "hi"}
 _REQUEST_KEYS = {"prompt", "emotional_lang", "mode", "temperature", "top_p", "max_new_tokens", "do_sample"}
 _TRACE_KEYS = ("turn", "guardrail", "skeleton", "tone_profile", "selection", "replay_hash")
+_ALLOWED_MODES = {"", "factual", "emotional", "mixed"}
+_MODE_ALIASES = {"explanatory": "factual"}
 
 def build_prompt(mode: str, user_prompt: str):
     if mode == "factual":
@@ -81,7 +83,7 @@ def _get_engine() -> InferenceEngine:
     return engine
 
 
-def _validate_generate_request(payload: dict[str, Any]) -> dict[str, str]:
+def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Invalid request body.")
 
@@ -108,7 +110,56 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, str]:
     if lang not in ALLOWED_LANGS:
         raise ValueError("Unsupported emotional_lang.")
 
-    return {"prompt": prompt, "emotional_lang": lang, "mode": payload.get("mode", "")}
+    mode = payload.get("mode", "")
+    if mode is None:
+        mode = ""
+    if not isinstance(mode, str):
+        raise ValueError("Invalid mode.")
+    mode = _MODE_ALIASES.get(mode.strip().lower(), mode.strip().lower())
+    if mode not in _ALLOWED_MODES:
+        raise ValueError("Unsupported mode.")
+
+    temperature = payload.get("temperature", 0.7)
+    if temperature is None:
+        temperature = 0.7
+    if not isinstance(temperature, (int, float)) or isinstance(temperature, bool):
+        raise ValueError("Invalid temperature.")
+    temperature = float(temperature)
+    if temperature < 0.0 or temperature > 2.0:
+        raise ValueError("Invalid temperature.")
+
+    top_p = payload.get("top_p", 0.9)
+    if top_p is None:
+        top_p = 0.9
+    if not isinstance(top_p, (int, float)) or isinstance(top_p, bool):
+        raise ValueError("Invalid top_p.")
+    top_p = float(top_p)
+    if top_p <= 0.0 or top_p > 1.0:
+        raise ValueError("Invalid top_p.")
+
+    max_new_tokens = payload.get("max_new_tokens", 128)
+    if max_new_tokens is None:
+        max_new_tokens = 128
+    if not isinstance(max_new_tokens, int) or isinstance(max_new_tokens, bool):
+        raise ValueError("Invalid max_new_tokens.")
+    if max_new_tokens <= 0 or max_new_tokens > 8192:
+        raise ValueError("Invalid max_new_tokens.")
+
+    do_sample = payload.get("do_sample", True)
+    if do_sample is None:
+        do_sample = True
+    if not isinstance(do_sample, bool):
+        raise ValueError("Invalid do_sample.")
+
+    return {
+        "prompt": prompt,
+        "emotional_lang": lang,
+        "mode": mode,
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_new_tokens": max_new_tokens,
+        "do_sample": do_sample,
+    }
 
 
 def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
@@ -193,6 +244,11 @@ def index(request: Request):
     )
 
 
+@app.get("/health")
+def health_check():
+    return JSONResponse(status_code=200, content={"status": "ok", "version": ENGINE_VERSION})
+
+
 @app.post("/generate")
 async def generate_text(request: Request):
     try:
@@ -211,35 +267,51 @@ async def generate_text(request: Request):
         
         # Deterministic
         det_response_text, det_meta = runtime_engine.generate(
-            structured_prompt, 
-            return_meta=True, 
-            temperature=0.0, 
-            top_p=1.0, 
-            do_sample=False,
-            # Inherit max_new_tokens if passed in validation
-            max_new_tokens=payload.get("max_new_tokens", 128)
-        )
-        
-        # Entropy run
-        ent_response_text, ent_meta = runtime_engine.generate(
-            structured_prompt, 
+            structured_prompt,
             return_meta=True,
-            temperature=0.7,
-            top_p=0.9,
-            do_sample=True,
-            max_new_tokens=payload.get("max_new_tokens", 128)
+            temperature=0.0,
+            top_p=1.0,
+            do_sample=False,
+            max_new_tokens=validated["max_new_tokens"],
         )
         
-        # Calculate semantic instability
+        # 5x Entropy runs (Monte Carlo sampling for robust uncertainty estimation)
+        from concurrent.futures import ThreadPoolExecutor
+        
+        def run_entropy():
+            return runtime_engine.generate(
+                structured_prompt,
+                return_meta=True,
+                temperature=validated["temperature"],
+                top_p=validated["top_p"],
+                do_sample=validated["do_sample"],
+                max_new_tokens=validated["max_new_tokens"],
+            )
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            entropy_results = list(executor.map(lambda _: run_entropy(), range(5)))
+            
+        ent_outputs = [res[0] for res in entropy_results]
+        ent_metas = [res[1] for res in entropy_results]
+        
+        # We can use the first entropy run's token count for backwards compatibility,
+        # or we could pass the entire list. `evaluate_dual_plane` now expects a list.
         det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
-        ent_token_count = ent_meta.get("output_tokens", len(ent_response_text.split()))
+        ent_token_counts = [meta.get("output_tokens", len(out.split())) for out, meta in zip(ent_outputs, ent_metas)]
         
         analysis = evaluate_dual_plane(
             det_response_text,
-            ent_response_text,
+            ent_outputs,
             det_token_count,
-            ent_token_count
+            ent_token_counts
         )
+
+        trace_data = _build_api_trace(structured_prompt, validated["emotional_lang"])
+        trace_data["monte_carlo_analysis"] = {
+            "entropy_consistency": analysis["entropy_consistency"],
+            "entropy_variance": analysis["entropy_variance"],
+            "det_entropy_similarity": analysis["det_entropy_similarity"],
+        }
 
         response_payload = {
             "response_text": det_response_text,
@@ -249,12 +321,12 @@ async def generate_text(request: Request):
             "confidence": analysis["confidence"],
             "instability": analysis["instability"],
             "escalate": analysis["escalate"],
-            "trace": _build_api_trace(structured_prompt, validated["emotional_lang"]),
+            "trace": trace_data,
         }
         
         if analysis["escalate"]:
             response_payload["review_packet"] = {
-                "entropy_output": ent_response_text,
+                "entropy_samples": ent_outputs,
                 "embedding_similarity": analysis["embedding_similarity"],
                 "ambiguity": analysis["ambiguity"],
             }

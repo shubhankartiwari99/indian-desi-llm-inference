@@ -1091,6 +1091,8 @@ class InferenceEngine:
                 temperature=kwargs.get("temperature", 0.7),
                 top_p=kwargs.get("top_p", 0.9),
                 do_sample=kwargs.get("do_sample", True),
+                repetition_penalty=kwargs.get("repetition_penalty", 1.1),
+                no_repeat_ngram_size=kwargs.get("no_repeat_ngram_size", 3),
             )
             return raw_output[0] if isinstance(raw_output, tuple) else raw_output
 
@@ -1599,8 +1601,19 @@ class InferenceEngine:
         )
         return intent, lang, conditioned_prompt, emotional_resolution
 
-    @torch.no_grad()
     def generate(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False, **kwargs):
+        import time
+        start_time = time.time()
+        res = self._generate_internal(prompt, max_new_tokens, True, **kwargs)
+        text, meta = res
+        meta["latency_ms"] = int((time.time() - start_time) * 1000)
+        if "input_tokens" not in meta:
+            # Approximate fallback if backend didn't provide it
+            meta["input_tokens"] = len(prompt.split()) * 2
+        return (text, meta) if return_meta else text
+
+    @torch.no_grad()
+    def _generate_internal(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False, **kwargs):
         guardrail_result = classify_user_input(prompt)
         guardrail_action = apply_guardrail_strategy(guardrail_result)
         if guardrail_action.override:

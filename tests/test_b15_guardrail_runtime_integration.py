@@ -62,7 +62,7 @@ def test_b15_runtime_safe_keeps_skeleton_and_no_override(monkeypatch):
 
     output, meta = engine.generate("Tell me a small step", return_meta=True)
     assert output == "I hear you. We can take one step."
-    assert meta == {"source": "memory_exact"}
+    assert meta.get("source") == "memory_exact"
     assert seen["resolution"].base_emotional_skeleton == "B"
     assert seen["resolution"].after_guardrail_skeleton == "B"
     assert seen["resolution"].emotional_skeleton == "B"
@@ -187,7 +187,7 @@ def test_b15_runtime_override_short_circuits_before_escalation(monkeypatch):
     engine.handle_user_input = lambda _text: (_ for _ in ()).throw(AssertionError("handle_user_input must not run"))
     response, meta = engine.generate("describe explicit sex", return_meta=True)
     assert response == "override"
-    assert meta == {}
+    assert "input_tokens" in meta
 
 
 def test_b15_runtime_emotional_turn_index_not_changed_by_escalation(monkeypatch):

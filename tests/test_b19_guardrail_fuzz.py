@@ -73,7 +73,7 @@ def _generate_override_response(
     response, meta = engine.generate(prompt, return_meta=True)
     assert isinstance(response, str)
     assert response.strip() != ""
-    assert meta == {}
+    assert "input_tokens" in meta
     return response
 
 

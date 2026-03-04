@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./cinematic.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,8 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-[radial-gradient(circle_at_15%_20%,_#141a2f,_#0b0f19_60%)] text-slate-200`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen overflow-hidden bg-[#030712] text-slate-200`}
       >
+        <div className="hollywood-grid" />
+        <div className="hollywood-scanlines" />
         {children}
       </body>
     </html>

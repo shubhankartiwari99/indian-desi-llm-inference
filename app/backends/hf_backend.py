@@ -47,6 +47,8 @@ class HFBackend:
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         input_tokens = inputs["input_ids"].shape[1]
+        repetition_penalty = float(kwargs.get("repetition_penalty", 1.1))
+        no_repeat_ngram_size = int(kwargs.get("no_repeat_ngram_size", 3))
 
         with torch.no_grad():
             outputs = self.model.generate(
@@ -55,10 +57,13 @@ class HFBackend:
                 temperature=temperature,
                 top_p=top_p,
                 do_sample=do_sample,
-                eos_token_id=self.tokenizer.eos_token_id
+                repetition_penalty=repetition_penalty,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.eos_token_id,
             )
 
         generated_ids = outputs[0][input_tokens:]
         text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        return text, {"output_tokens": len(generated_ids)}
+        return text, {"output_tokens": len(generated_ids), "input_tokens": input_tokens}
