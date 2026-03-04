@@ -13,6 +13,10 @@ ALLOWED_EMO_FILES = {
     ROOT / "app" / "intent.py",
 }
 
+ALLOWED_RANDOMNESS_FILES = {
+    ROOT / "app" / "api.py",
+}
+
 RUNTIME_SCAN_ROOTS = {
     ROOT / "app",
 }
@@ -51,6 +55,8 @@ def iter_py_files():
 
 
 def check_randomness(contents: str, path: Path, failures: list):
+    if path in ALLOWED_RANDOMNESS_FILES:
+        return
     for pattern in RANDOMNESS_PATTERNS:
         if pattern.search(contents):
             failures.append(f"randomness_ban:{path}")

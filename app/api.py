@@ -304,13 +304,15 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
     }
 
     if hasattr(runtime_engine, "generate_monte_carlo"):
+        temperature = validated["temperature"]
+        do_sample = validated["do_sample"]
         entropy_results = runtime_engine.generate_monte_carlo(
             structured_prompt,
             sample_count=sample_count,
             max_new_tokens=validated["max_new_tokens"],
-            temperature=validated["temperature"],
+            temperature=temperature,
             top_p=validated["top_p"],
-            do_sample=validated["do_sample"],
+            do_sample=do_sample,
         )
     else:
         entropy_results = [
