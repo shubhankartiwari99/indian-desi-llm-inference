@@ -1057,9 +1057,9 @@ function Panel({
 
 function MetricCard({ label, value, tone = "text-[#0dccf2]" }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{label}</p>
-      <p className={`font-mono text-base ${tone}`}>{value}</p>
+    <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3 min-w-0">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-400 truncate" title={label}>{label}</p>
+      <p className={`font-mono text-base ${tone} truncate`}>{value}</p>
     </div>
   )
 }
@@ -1788,10 +1788,10 @@ export default function Home() {
             </Panel>
 
             <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-              <Panel title="Reliability" subtitle="Confidence and instability view">
+              <Panel title="Reliability" subtitle="Confidence and instability view" className="flex-none">
                 {result ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6">
+                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-4">
                       <MetricCard label="Confidence" value={result.confidence.toFixed(3)} tone="text-emerald-400" />
                       <MetricCard label="Instability" value={result.instability.toFixed(3)} tone="text-amber-300" />
                       <MetricCard
@@ -1891,7 +1891,7 @@ export default function Home() {
               )}
               <Panel title="Telemetry" subtitle="Latency and token accounting">
                 {result ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-3">
                     <MetricCard label="Latency" value={`${result.latency_ms} ms`} />
                     <MetricCard label="Input Tokens" value={result.input_tokens.toString()} />
                     <MetricCard label="Output Tokens" value={result.output_tokens.toString()} />
@@ -1927,21 +1927,26 @@ export default function Home() {
 
               {result?.escalate ? (
                 <Panel title="Escalation" subtitle="Uncertainty diagnostics">
-                  <div className="space-y-2 text-sm text-red-200">
-                    <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 uppercase tracking-[0.12em]">
-                      Model uncertainty detected
-                    </p>
-                    <p className="font-mono">
-                      Embedding Similarity: {typeof reviewPacket?.embedding_similarity === "number"
-                        ? reviewPacket.embedding_similarity.toFixed(3)
-                        : "n/a"}
-                    </p>
-                    <p className="font-mono">
-                      Ambiguity: {typeof reviewPacket?.ambiguity === "number"
-                        ? reviewPacket.ambiguity.toFixed(3)
-                        : "n/a"}
-                    </p>
-                    <p className="font-mono">Entropy Samples: {reviewPacket?.entropy_samples?.length ?? 0}</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.12em] text-red-300">Uncertainty Level</p>
+                      <p className="font-mono text-lg font-bold text-red-400">CRITICAL</p>
+                    </div>
+                    <div className="space-y-1 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                      <p className="font-mono text-xs text-slate-300">
+                        Similarity: {typeof reviewPacket?.embedding_similarity === "number"
+                          ? reviewPacket.embedding_similarity.toFixed(3)
+                          : "n/a"}
+                      </p>
+                      <p className="font-mono text-xs text-slate-300">
+                        Ambiguity: {typeof reviewPacket?.ambiguity === "number"
+                          ? reviewPacket.ambiguity.toFixed(3)
+                          : "n/a"}
+                      </p>
+                      <p className="font-mono text-xs text-slate-300">
+                        Samples: {reviewPacket?.entropy_samples?.length ?? 0}
+                      </p>
+                    </div>
                   </div>
                 </Panel>
               ) : null}
