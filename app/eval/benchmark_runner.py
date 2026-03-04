@@ -28,7 +28,9 @@ async def run_benchmark(prompts: List[Dict[str, str]], engine: Any, validated_pa
         result = await asyncio.to_thread(run_inference_pipeline, engine, eval_payload)
         results.append(result)
         
+    from app.engine_identity import ENGINE_NAME
     summary = summarize_benchmark(results)
+    summary["model"] = ENGINE_NAME
     return {
         "summary": summary,
         "results": results

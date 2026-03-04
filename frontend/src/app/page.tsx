@@ -2,18 +2,23 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react"
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   Download,
   FlaskConical,
   Play,
   Server,
   Trash2,
+  Trophy,
   Upload,
 } from "lucide-react"
 import StabilityChart from "@/components/StabilityChart"
 import ReliabilityDistributions from "@/components/ReliabilityDistributions"
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 type InferenceMode = "factual" | "mixed" | "emotional"
 
@@ -92,6 +97,15 @@ const PROMPT_CATEGORIES = [
 type PromptCategory = typeof PROMPT_CATEGORIES[number] | string;
 
 type DifficultyLabel = "easy" | "moderate" | "hard" | "adversarial"
+
+type LeaderboardEntry = {
+  model: string
+  mean_confidence: number
+  mean_instability: number
+  escalation_rate: number
+  mean_entropy: number
+  timestamp: string
+}
 
 type ExperimentResult = {
   prompt: string
@@ -1057,22 +1071,29 @@ function Panel({
 }
 
 function getConfidenceInterpretation(val: number) {
-  if (val > 0.8) return "High"
-  if (val > 0.5) return "Moderate"
-  return "Low"
+  if (val > 0.85) return "High"
+  if (val > 0.65) return "⚠ Moderate"
+  return "⚠ Low (Stochastic)"
 }
 
 function getInstabilityInterpretation(val: number) {
   if (val < 0.1) return "Stable"
-  if (val < 0.3) return "Low"
-  if (val < 0.6) return "Moderate"
-  return "High"
+  if (val < 0.25) return "⚠ Low"
+  if (val < 0.5) return "⚠ Moderate"
+  return "⚠ High (Divergent)"
 }
 
 function getUncertaintyInterpretation(val: number) {
-  if (val < 0.3) return "Clear"
-  if (val < 0.6) return "Ambiguous"
-  return "Critical"
+  if (val < 0.3) return "Stable"
+  if (val < 0.55) return "⚠ Moderate"
+  if (val < 0.85) return "⚠ High"
+  return "CRITICAL (Escalation)"
+}
+
+function getEntropyInterpretation(val: number) {
+  if (val < 0.3) return "Focused"
+  if (val < 0.7) return "⚠ Moderate"
+  return "⚠ High"
 }
 
 
@@ -1132,13 +1153,51 @@ function RibbonMetric({
   )
 }
 
+function LeaderboardPanel({ data }: { data: LeaderboardEntry[] }) {
+  return (
+    <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-hidden flex flex-col h-full min-h-[200px]">
+      <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-2">
+        <Trophy className="h-4 w-4 text-amber-500" />
+        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Reliability Leaderboard</h3>
+      </div>
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <table className="w-full text-left text-[11px] font-mono">
+          <thead>
+            <tr className="text-slate-500 uppercase border-b border-slate-800">
+              <th className="pb-2 font-bold px-1">Model</th>
+              <th className="pb-2 font-bold px-1 text-[#0dccf2]">Conf</th>
+              <th className="pb-2 font-bold px-1 text-amber-500">Inst</th>
+              <th className="pb-2 font-bold px-1 text-orange-500">Esc</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/30">
+            {data.map((entry, i) => (
+              <tr key={i} className="hover:bg-slate-800/20 transition-colors">
+                <td className="py-2 px-1 text-slate-300 font-bold max-w-[100px] truncate">{entry.model}</td>
+                <td className="py-2 px-1 text-[#0dccf2] font-black">{entry.mean_confidence.toFixed(2)}</td>
+                <td className="py-2 px-1 text-amber-500">{entry.mean_instability.toFixed(2)}</td>
+                <td className="py-2 px-1 text-orange-500">{(entry.escalation_rate * 100).toFixed(0)}%</td>
+              </tr>
+            ))}
+            {data.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-8 text-center text-slate-600 italic">No rankings established</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const [prompt, setPrompt] = useState("")
   const [config, setConfig] = useState<InferenceConfig>({
     mode: "factual",
     temperature: 0.7,
     top_p: 0.9,
-    max_new_tokens: 512,
+    max_new_tokens: 80,
     monte_carlo_samples: 5,
   })
 
@@ -1164,6 +1223,8 @@ export default function Home() {
   const [showSamples, setShowSamples] = useState(false)
   const [showMCDiagnostics, setShowMCDiagnostics] = useState(true)
   const [clockText, setClockText] = useState("--:--:--")
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [reportLoading, setReportLoading] = useState(false)
 
   const monteCarlo = useMemo(() => {
     const mc = trace?.monte_carlo_analysis
@@ -1172,7 +1233,24 @@ export default function Home() {
 
   const comparisonVisible = showCoreComparison || Boolean(result?.escalate)
 
-  const experimentSummary = useMemo(() => {
+  const experimentSummary: {
+    total: number
+    meanConfidence: number
+    meanInstability: number
+    meanEntropy: number
+    meanUncertainty: number
+    meanDifficulty: number
+    meanTemperatureSensitivity: number
+    difficultyCounts: Record<DifficultyLabel, number>
+    escalationRate: number
+    avgLatency: number
+    avgOutputTokens: number
+    instabilityCurve: { temperature: number; value: number }[]
+    entropyCurve: { temperature: number; value: number }[]
+    confidenceCurve: { temperature: number; value: number }[]
+    categoryAggregates: CategoryAggregatePoint[]
+    model: string
+  } | null = useMemo(() => {
     if (experimentResults.length === 0) return null
 
     const rowsWithSensitivity = attachTemperatureSensitivity(experimentResults)
@@ -1223,6 +1301,7 @@ export default function Home() {
       entropyCurve,
       confidenceCurve,
       categoryAggregates,
+      model: "Qwen-2.5-7B" // Defaulting for dashboard display
     }
   }, [experimentResults])
 
@@ -1296,17 +1375,51 @@ export default function Home() {
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    const tick = () => {
-      setClockText(
-        new Date().toLocaleTimeString("en-GB", {
-          hour12: false,
-        }),
-      )
+  async function fetchLeaderboard() {
+    try {
+      const res = await fetch("http://localhost:8000/evaluate/leaderboard")
+      const data = await res.json()
+      setLeaderboard(data)
+    } catch (e) {
+      console.error("Failed to fetch leaderboard", e)
     }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+  }
+
+  async function generateResearchReport() {
+    if (!experimentSummary) return
+    setReportLoading(true)
+    try {
+      const res = await fetch("http://localhost:8000/evaluate/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary: experimentSummary }),
+      })
+      const data = await res.json()
+      if (data.report) {
+        const blob = new Blob([data.report], { type: "text/plain" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `reliability_report_${experimentSummary.model || "qwen"}.txt`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (e) {
+      console.error("Failed to generate report", e)
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchLeaderboard()
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClockText(new Date().toLocaleTimeString("en-GB", { hour12: false }))
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
 
   const requestInference = async (
@@ -1597,8 +1710,9 @@ export default function Home() {
       <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 px-4 py-3 backdrop-blur md:px-6 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-[#0dccf2] md:text-base">
-              AI Research Command Center
+            <h1 className="text-sm font-black uppercase tracking-[0.3em] text-[#0dccf2] md:text-base flex items-center gap-2">
+              <Activity className="h-5 w-5 animate-pulse" />
+              LLM Reliability Research Dashboard
             </h1>
             <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-wider">
               System Core: Qwen2.5-7B | Backend: Kaggle ({modelStatus === "ready" ? "Online" : "Offline"})
@@ -1811,9 +1925,9 @@ export default function Home() {
           <Panel title="MC Diagnostics" subtitle="Stochastic divergence" className="bg-slate-900/50 border-slate-800 h-[400px] flex flex-col">
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <MetricCard label="Dispersion" value={result?.semantic_dispersion?.toFixed(3) || "0.000"} tone={result?.semantic_dispersion && result.semantic_dispersion > 0.1 ? "text-amber-400" : "text-[#0dccf2]"} />
-                <MetricCard label="Entropy" value={result?.entropy?.toFixed(3) || "0.000"} tone={result?.entropy && result.entropy > 0.5 ? "text-amber-400" : "text-[#0dccf2]"} />
-                <MetricCard label="Clusters" value={result?.cluster_count?.toString() || "0"} tone={result?.cluster_count && result.cluster_count > 1 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Dispersion" value={result?.semantic_dispersion?.toFixed(3) || "0.000"} interpretation={result ? (result.semantic_dispersion > 0.1 ? "⚠ High" : "Stable") : undefined} tone={result?.semantic_dispersion && result.semantic_dispersion > 0.1 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Entropy" value={result?.entropy?.toFixed(3) || "0.000"} interpretation={result?.entropy !== undefined ? getEntropyInterpretation(result.entropy) : undefined} tone={result?.entropy && result.entropy > 0.5 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Clusters" value={result?.cluster_count?.toString() || "0"} interpretation={result ? (result.cluster_count && result.cluster_count > 1 ? "⚠ Divergent" : "Stable") : undefined} tone={result?.cluster_count && result.cluster_count > 1 ? "text-amber-400" : "text-[#0dccf2]"} />
                 <MetricCard label="Consistency" value={result?.self_consistency ? `${(result.self_consistency * 100).toFixed(0)}%` : "--"} />
               </div>
               <div className="pt-4 border-t border-slate-800 space-y-2">
@@ -1832,34 +1946,7 @@ export default function Home() {
             </div>
           </Panel>
 
-          <Panel title="Uncertainty Trigger" subtitle="Anomaly detection" className={`bg-slate-900/50 border-slate-800 h-[400px] flex flex-col ${result?.escalate ? "ring-1 ring-orange-500/40" : ""}`}>
-            {result?.escalate ? (
-              <div className="flex-1 flex flex-col justify-center space-y-6 text-center">
-                <div className="py-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                  <p className="text-[10px] uppercase font-black tracking-[0.4em] text-orange-400 mb-2">Uncertainty State</p>
-                  <p className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">TRIGGERED</p>
-                </div>
-                <div className="grid grid-cols-1 gap-2 text-left">
-                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
-                    <span className="text-[10px] uppercase text-slate-500">Similarity</span>
-                    <span className="text-xs font-mono text-orange-300">{reviewPacket?.embedding_similarity?.toFixed(3) || "n/a"}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
-                    <span className="text-[10px] uppercase text-slate-500">Ambiguity</span>
-                    <span className="text-xs font-mono text-orange-300">{reviewPacket?.ambiguity?.toFixed(3) || "n/a"}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
-                    <span className="text-[10px] uppercase text-slate-500">Entropy Var</span>
-                    <span className="text-xs font-mono text-orange-300">{isRecord(monteCarlo) && (monteCarlo as any).entropy_variance?.toFixed(3) || "n/a"}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-700 font-mono text-[10px] uppercase tracking-widest text-center px-4">
-                No uncertainty signals detected in current inference block
-              </div>
-            )}
-          </Panel>
+          <LeaderboardPanel data={leaderboard} />
         </div>
 
         {/* Layer 4: Experiment Runner */}
@@ -1877,9 +1964,21 @@ export default function Home() {
                 {experimentRunning ? "Running Pipeline..." : "Initialize Batch Run"}
               </button>
               {datasetItems.length > 0 && (
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-                  Dataset Ready: {datasetItems.length} research prompts loaded
-                </p>
+                <div className="flex items-center gap-4">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                    Dataset Ready: {datasetItems.length} research prompts loaded
+                  </p>
+                  {experimentSummary && (
+                    <button
+                      onClick={generateResearchReport}
+                      disabled={reportLoading}
+                      className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-lg text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition-colors uppercase tracking-widest disabled:opacity-40"
+                    >
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                      {reportLoading ? "Synthesizing..." : "Generate Research Report"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

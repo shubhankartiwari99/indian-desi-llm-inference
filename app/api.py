@@ -23,6 +23,8 @@ from app.engine_identity import ENGINE_NAME, ENGINE_RELEASE_STAGE, ENGINE_VERSIO
 from app.inference import InferenceEngine
 from app.tone.tone_calibration import calibrate_tone
 from app.intelligence.dual_plane import evaluate_dual_plane
+from app.eval.leaderboard import update_leaderboard, get_leaderboard
+from app.eval.report_generator import generate_research_report
 
 app = FastAPI(
     title="Indian Desi Multilingual LLM",
@@ -583,14 +585,45 @@ async def evaluate_benchmark(request: Request):
         
         # Run benchmark (this will be long-running)
         # We run it in a thread to avoid blocking the event loop
-        summary = await run_benchmark(prompts, runtime_engine, validated_params)
-        return JSONResponse(status_code=200, content=summary)
+        result = await run_benchmark(prompts, runtime_engine, validated_params)
+        
+        # Persist to leaderboard
+        summary = result.get("summary", {})
+        if summary:
+            update_leaderboard(summary.get("model", ENGINE_NAME), summary)
+            
+        return JSONResponse(status_code=200, content=result)
         
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"error": str(exc), "code": "INVALID_INPUT"})
     except Exception as exc:
         logging.exception("Benchmark failed: %s", exc)
         return JSONResponse(status_code=500, content={"error": "Benchmark failed.", "code": "BENCHMARK_ERROR"})
+
+
+@app.get("/evaluate/leaderboard")
+async def fetch_leaderboard():
+    try:
+        data = get_leaderboard()
+        return JSONResponse(status_code=200, content=data)
+    except Exception as e:
+        logging.exception("Failed to fetch leaderboard: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to fetch leaderboard."})
+
+
+@app.post("/evaluate/report")
+async def create_report(request: Request):
+    try:
+        payload = await request.json()
+        summary = payload.get("summary")
+        if not summary:
+            return JSONResponse(status_code=400, content={"error": "Missing benchmark summary."})
+            
+        report_text = generate_research_report(summary)
+        return JSONResponse(status_code=200, content={"report": report_text})
+    except Exception as e:
+        logging.exception("Failed to generate report: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to generate report."})
 
 
 @app.get("/version")

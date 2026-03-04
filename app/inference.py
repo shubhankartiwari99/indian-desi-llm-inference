@@ -1609,7 +1609,7 @@ class InferenceEngine:
         )
         return intent, lang, conditioned_prompt, emotional_resolution
 
-    def generate(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False, **kwargs):
+    def generate(self, prompt: str, max_new_tokens: int = 80, return_meta: bool = False, **kwargs):
         res = self._generate_internal(prompt, max_new_tokens, True, **kwargs)
         text, meta = res
         if "input_tokens" not in meta:
@@ -1621,7 +1621,7 @@ class InferenceEngine:
         self,
         prompt: str,
         sample_count: int = 5,
-        max_new_tokens: int = 96,
+        max_new_tokens: int = 80,
         **kwargs,
     ) -> list[tuple[str, dict[str, Any]]]:
         outputs: list[tuple[str, dict[str, Any]]] = []
@@ -1636,7 +1636,7 @@ class InferenceEngine:
         return outputs
 
     @torch.no_grad()
-    def _generate_internal(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False, **kwargs):
+    def _generate_internal(self, prompt: str, max_new_tokens: int = 80, return_meta: bool = False, **kwargs):
         guardrail_result = classify_user_input(prompt)
         guardrail_action = apply_guardrail_strategy(guardrail_result)
         if guardrail_action.override:
