@@ -12,6 +12,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react"
+import StabilityChart from "@/components/StabilityChart"
 
 type InferenceMode = "factual" | "mixed" | "emotional"
 
@@ -48,6 +49,7 @@ type InferenceResult = {
   uncertainty?: number
   escalate: boolean
   sample_count?: number
+  samples_used?: number
   semantic_dispersion?: number
   cluster_count?: number
   cluster_entropy?: number
@@ -107,6 +109,7 @@ type ExperimentResult = {
   input_tokens: number
   output_tokens: number
   sample_count: number
+  samples_used: number
   semantic_dispersion?: number
   cluster_count?: number
   cluster_entropy?: number
@@ -367,6 +370,7 @@ function parseInferenceResponse(payload: unknown): InferenceApiResponse {
     "output_tokens",
     "confidence",
     "instability",
+    "samples_used"
   ]
 
   for (const field of numericFields) {
@@ -521,6 +525,7 @@ function buildCsv(rows: ExperimentResult[]): string {
     "confidence",
     "escalate",
     "sample_count",
+    "samples_used",
     "semantic_dispersion",
     "cluster_count",
     "cluster_entropy",
@@ -543,6 +548,7 @@ function buildCsv(rows: ExperimentResult[]): string {
       toCsvCell(row.confidence),
       toCsvCell(row.escalate),
       toCsvCell(row.sample_count),
+      toCsvCell(row.samples_used),
       toCsvCell(row.semantic_dispersion),
       toCsvCell(row.cluster_count),
       toCsvCell(row.cluster_entropy),
@@ -999,6 +1005,7 @@ async function exportExperimentReportFiles(rows: ExperimentResult[]) {
     `Difficulty bands: easy=${difficultyCounts.easy}, moderate=${difficultyCounts.moderate}, hard=${difficultyCounts.hard}, adversarial=${difficultyCounts.adversarial}`,
     `Temperature sweep: ${instabilityCurve.map((point) => point.temperature.toFixed(1)).join(", ")}`,
     `Category counts: ${categoryAggregates.map(c => `${c.category}(${c.count})`).join(", ")}`,
+    `Avg samples used: ${mean(rows.map(r => r.samples_used)).toFixed(2)}`,
     `Avg latency: ${mean(latencyValues).toFixed(2)} ms`,
     `Avg tokens (output): ${mean(tokensOut).toFixed(2)}`,
   ].join("\n")
@@ -1017,6 +1024,7 @@ async function exportExperimentReportFiles(rows: ExperimentResult[]) {
       uncertainty: row.uncertainty,
       self_consistency: row.self_consistency,
       cluster_count: row.cluster_count,
+      samples_used: row.samples_used,
     }
   }))
 
@@ -1100,6 +1108,7 @@ export default function Home() {
   const [experimentProgress, setExperimentProgress] = useState({ done: 0, total: 0 })
   const [experimentError, setExperimentError] = useState<string | null>(null)
   const [experimentResults, setExperimentResults] = useState<ExperimentResult[]>([])
+  const [stabilityData, setStabilityData] = useState<TemperatureAggregatePoint[]>([])
   const [clockText, setClockText] = useState("--:--:--")
 
   const monteCarlo = useMemo(() => {
@@ -1331,6 +1340,7 @@ export default function Home() {
         uncertainty: typeof data.uncertainty === "number" ? data.uncertainty : undefined,
         escalate: data.escalate,
         sample_count: typeof data.sample_count === "number" ? data.sample_count : undefined,
+        samples_used: typeof data.samples_used === "number" ? data.samples_used : undefined,
         semantic_dispersion: typeof data.semantic_dispersion === "number" ? data.semantic_dispersion : undefined,
         cluster_count: typeof data.cluster_count === "number" ? data.cluster_count : undefined,
         cluster_entropy: typeof data.cluster_entropy === "number" ? data.cluster_entropy : undefined,
@@ -1347,6 +1357,15 @@ export default function Home() {
       setLoading(false)
     }
   }
+
+  // Effect to sync stabilityData with experimentSummary for visualization
+  useEffect(() => {
+    if (experimentSummary?.instabilityCurve) {
+      setStabilityData(experimentSummary.instabilityCurve)
+    } else if (experimentResults.length === 0) {
+      setStabilityData([])
+    }
+  }, [experimentSummary, experimentResults.length])
 
   const handleDatasetUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -1438,6 +1457,7 @@ export default function Home() {
             input_tokens: data.input_tokens,
             output_tokens: data.output_tokens,
             sample_count: typeof data.sample_count === "number" ? data.sample_count : 0,
+            samples_used: typeof data.samples_used === "number" ? data.samples_used : 0,
             semantic_dispersion: typeof data.semantic_dispersion === "number" ? data.semantic_dispersion : undefined,
             cluster_count: typeof data.cluster_count === "number" ? data.cluster_count : undefined,
             cluster_entropy: typeof data.cluster_entropy === "number" ? data.cluster_entropy : undefined,
@@ -1466,6 +1486,7 @@ export default function Home() {
             input_tokens: 0,
             output_tokens: 0,
             sample_count: 0,
+            samples_used: 0,
             semantic_dispersion: 1,
             cluster_count: 1,
             cluster_entropy: 1,
@@ -1550,7 +1571,7 @@ export default function Home() {
               AI Research Command Center
             </h1>
             <p className="mt-1 text-xs text-slate-400">
-              Model: Qwen2.5-7B | Backend: Kaggle | Runtime: Connected Flow
+              Model: Qwen2.5-7B | Backend: Kaggle ({modelStatus === "ready" ? "Online" : modelStatus === "loading" ? "Loading" : "Offline"})
             </p>
           </div>
 
@@ -1603,7 +1624,7 @@ export default function Home() {
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     placeholder="Enter prompt..."
-                    className="min-h-[140px] w-full resize-y rounded-lg border border-[#0dccf2]/20 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-[#0dccf2]/50"
+                    className="min-h-[120px] w-full resize-y rounded-lg border border-[#0dccf2]/20 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-[#0dccf2]/50"
                   />
                 </div>
 
@@ -1683,7 +1704,7 @@ export default function Home() {
                       : modelStatus === "loading"
                         ? "Model Loading"
                         : modelStatus === "offline"
-                          ? "Model Offline"
+                          ? "Run Prompt (backend offline)"
                           : "Run Prompt"}
                   </button>
                   <button
@@ -1875,12 +1896,8 @@ export default function Home() {
                     <MetricCard label="Input Tokens" value={result.input_tokens.toString()} />
                     <MetricCard label="Output Tokens" value={result.output_tokens.toString()} />
                     <MetricCard
-                      label="Samples"
-                      value={
-                        isRecord(monteCarlo) && typeof monteCarlo.sample_count === "number"
-                          ? monteCarlo.sample_count.toFixed(0)
-                          : config.monte_carlo_samples.toString()
-                      }
+                      label="Samples Used"
+                      value={`${result.samples_used} / ${config.monte_carlo_samples}`}
                     />
                     <MetricCard
                       label="Entropy Variance"
@@ -1902,6 +1919,10 @@ export default function Home() {
                 ) : (
                   <p className="text-sm text-slate-500">Telemetry appears after running inference.</p>
                 )}
+              </Panel>
+
+              <Panel title="MODEL STABILITY CURVE" subtitle="Temperature vs Instability">
+                <StabilityChart data={stabilityData} />
               </Panel>
 
               {result?.escalate ? (
@@ -2285,6 +2306,7 @@ export default function Home() {
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Escalate</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Latency (ms)</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Tokens In</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Samples Used</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Tokens Out</th>
                     </tr>
                   </thead>
@@ -2326,6 +2348,16 @@ export default function Home() {
                         </td>
                         <td className="px-3 py-2 font-mono">{row.latency_ms}</td>
                         <td className="px-3 py-2 font-mono">{row.input_tokens}</td>
+                        <td className="px-3 py-2 font-mono">
+                          <span className={`${row.samples_used >= config.monte_carlo_samples ? "text-red-400 font-bold" : "text-emerald-400"}`}>
+                            {row.samples_used} / {config.monte_carlo_samples}
+                          </span>
+                          {row.samples_used >= config.monte_carlo_samples && (
+                            <span className="ml-2 inline-flex rounded bg-red-500/20 px-1 py-0.5 text-[9px] uppercase tracking-wider text-red-500">
+                              High Complexity
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 font-mono">{row.output_tokens}</td>
                       </tr>
                     ))}

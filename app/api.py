@@ -196,7 +196,7 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
         mc_samples = 5
     if not isinstance(mc_samples, int) or isinstance(mc_samples, bool):
         raise ValueError("Invalid monte_carlo_samples.")
-    if mc_samples < 3 or mc_samples > 7:
+    if mc_samples < 3 or mc_samples > 10:
         raise ValueError("Invalid monte_carlo_samples.")
 
     return {
@@ -284,7 +284,9 @@ def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
 
 def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str, Any]) -> dict[str, Any]:
     structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
-    sample_count = validated["monte_carlo_samples"]
+    max_samples = validated["monte_carlo_samples"]
+    min_samples = 4
+    stability_threshold = 0.03
 
     _t0 = datetime.datetime.now()
     det_response_text, det_meta = runtime_engine.generate(
@@ -296,6 +298,8 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
         max_new_tokens=validated["max_new_tokens"],
     )
 
+    det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
+
     entropy_kwargs = {
         "temperature": validated["temperature"],
         "top_p": validated["top_p"],
@@ -303,41 +307,51 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
         "max_new_tokens": validated["max_new_tokens"],
     }
 
-    if hasattr(runtime_engine, "generate_monte_carlo"):
-        temperature = validated["temperature"]
-        do_sample = validated["do_sample"]
-        entropy_results = runtime_engine.generate_monte_carlo(
-            structured_prompt,
-            sample_count=sample_count,
-            max_new_tokens=validated["max_new_tokens"],
-            temperature=temperature,
-            top_p=validated["top_p"],
-            do_sample=do_sample,
-        )
-    else:
-        entropy_results = [
-            runtime_engine.generate(
-                structured_prompt,
-                return_meta=True,
-                **entropy_kwargs,
-            )
-            for _ in range(sample_count)
-        ]
+    ent_outputs = []
+    ent_metas = []
+    instability_history = []
+    final_analysis = None
 
-    ent_outputs = [res[0] for res in entropy_results]
-    ent_metas = [res[1] for res in entropy_results]
+    while len(ent_outputs) < max_samples:
+        res_text, res_meta = runtime_engine.generate(
+            structured_prompt,
+            return_meta=True,
+            **entropy_kwargs,
+        )
+        ent_outputs.append(res_text)
+        ent_metas.append(res_meta)
+
+        if len(ent_outputs) >= 2:
+            current_ent_token_counts = [m.get("output_tokens", len(o.split())) for o, m in zip(ent_outputs, ent_metas)]
+            analysis = evaluate_dual_plane(
+                det_response_text,
+                ent_outputs,
+                det_token_count,
+                current_ent_token_counts,
+            )
+            instability_history.append(analysis["instability"])
+
+            if len(ent_outputs) >= min_samples and len(instability_history) >= 2:
+                delta = abs(instability_history[-1] - instability_history[-2])
+                if delta < stability_threshold:
+                    final_analysis = analysis
+                    break
+            final_analysis = analysis
+
     core_b_output = ent_outputs[0] if ent_outputs else det_response_text
 
-    det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
     ent_token_counts = [meta.get("output_tokens", len(out.split())) for out, meta in zip(ent_outputs, ent_metas)]
     first_entropy_token_count = ent_token_counts[0] if ent_token_counts else 0
 
-    analysis = evaluate_dual_plane(
-        det_response_text,
-        ent_outputs,
-        det_token_count,
-        ent_token_counts,
-    )
+    if final_analysis is None:
+        analysis = evaluate_dual_plane(
+            det_response_text,
+            ent_outputs,
+            det_token_count,
+            ent_token_counts,
+        )
+    else:
+        analysis = final_analysis
 
     trace_data = _build_api_trace(structured_prompt, validated["emotional_lang"])
     trace_data["monte_carlo_analysis"] = {
@@ -376,6 +390,7 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
         "uncertainty": analysis["uncertainty"],
         "escalate": analysis["escalate"],
         "sample_count": analysis["sample_count"],
+        "samples_used": len(ent_outputs),
         "semantic_dispersion": analysis["semantic_dispersion"],
         "cluster_count": analysis["cluster_count"],
         "cluster_entropy": analysis["cluster_entropy"],
