@@ -12,6 +12,7 @@ type GenerateContract = {
   confidence: number
   instability: number
   escalate: boolean
+  core_comparison?: Record<string, unknown>
   trace?: Record<string, unknown>
   review_packet?: Record<string, unknown>
 }
@@ -61,6 +62,10 @@ function assertGenerateContract(data: unknown): asserts data is GenerateContract
 
   if ("trace" in data && data.trace !== undefined && !isObject(data.trace)) {
     throw new ContractError("Invalid trace in inference response.")
+  }
+
+  if ("core_comparison" in data && data.core_comparison !== undefined && !isObject(data.core_comparison)) {
+    throw new ContractError("Invalid core_comparison in inference response.")
   }
 
   if ("review_packet" in data && data.review_packet !== undefined && !isObject(data.review_packet)) {

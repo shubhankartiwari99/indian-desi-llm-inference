@@ -293,11 +293,13 @@ async def generate_text(request: Request):
             
         ent_outputs = [res[0] for res in entropy_results]
         ent_metas = [res[1] for res in entropy_results]
+        core_b_output = ent_outputs[0] if ent_outputs else ""
         
         # We can use the first entropy run's token count for backwards compatibility,
         # or we could pass the entire list. `evaluate_dual_plane` now expects a list.
         det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
         ent_token_counts = [meta.get("output_tokens", len(out.split())) for out, meta in zip(ent_outputs, ent_metas)]
+        first_entropy_token_count = ent_token_counts[0] if ent_token_counts else 0
         
         analysis = evaluate_dual_plane(
             det_response_text,
@@ -321,6 +323,13 @@ async def generate_text(request: Request):
             "confidence": analysis["confidence"],
             "instability": analysis["instability"],
             "escalate": analysis["escalate"],
+            "core_comparison": {
+                "core_a_output": det_response_text,
+                "core_b_output": core_b_output,
+                "embedding_similarity": analysis["det_entropy_similarity"],
+                "token_delta": abs(det_token_count - first_entropy_token_count),
+                "length_delta": abs(len(det_response_text) - len(core_b_output)),
+            },
             "trace": trace_data,
         }
         

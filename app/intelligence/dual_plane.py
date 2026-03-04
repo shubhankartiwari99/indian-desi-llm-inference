@@ -68,5 +68,7 @@ def evaluate_dual_plane(det_output: str, ent_outputs: list[str], det_tokens: int
         "entropy_consistency": round(entropy_consistency, 3),
         "entropy_variance": round(entropy_variance, 3),
         "ambiguity": round(avg_ambiguity, 3),
+        "length_delta": round(avg_length_delta, 3),
+        "token_delta": round(avg_token_delta, 3),
         "ambiguities": [round(a, 3) for a in ambiguities]
     }
