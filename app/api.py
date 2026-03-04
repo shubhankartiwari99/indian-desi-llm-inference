@@ -44,6 +44,7 @@ MAX_PROMPT_LENGTH = 10000
 ALLOWED_LANGS = {"en", "hi"}
 _REQUEST_KEYS = {
     "prompt",
+    "prompts",
     "emotional_lang",
     "mode",
     "temperature",
@@ -131,14 +132,21 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Unexpected fields in request.")
 
     prompt = payload.get("prompt")
-    if not isinstance(prompt, str):
-        raise ValueError("Prompt must be a string.")
+    prompts = payload.get("prompts")
 
-    if not prompt.strip():
-        raise ValueError("Prompt cannot be empty.")
+    if not prompt and not prompts:
+        raise ValueError("Either 'prompt' or 'prompts' must be provided.")
 
-    if len(prompt) > MAX_PROMPT_LENGTH:
-        raise ValueError("Prompt exceeds maximum length.")
+    if prompt:
+        if not isinstance(prompt, str):
+            raise ValueError("Prompt must be a string.")
+        if not prompt.strip():
+            raise ValueError("Prompt cannot be empty.")
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            raise ValueError("Prompt exceeds maximum length.")
+
+    if prompts and not isinstance(prompts, list):
+        raise ValueError("'prompts' must be a list of objects.")
 
     lang = payload.get("emotional_lang", "en")
     if lang is None:
@@ -282,13 +290,16 @@ def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
     return sealed_trace
 
 
-def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str, Any]) -> dict[str, Any]:
+def run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str, Any]) -> dict[str, Any]:
     structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
     max_samples = validated["monte_carlo_samples"]
     min_samples = 4
     stability_threshold = 0.03
 
     _t0 = datetime.datetime.now()
+    # Prevent dialogue contamination by stopping at common speaker labels
+    stop_tokens = ["User:", "Human:", "Assistant:", "Sincerely,", "Human: ", "User: ", "Assistant: "]
+    
     det_response_text, det_meta = runtime_engine.generate(
         structured_prompt,
         return_meta=True,
@@ -296,6 +307,7 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
         top_p=1.0,
         do_sample=False,
         max_new_tokens=validated["max_new_tokens"],
+        stop=stop_tokens
     )
 
     det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
@@ -305,6 +317,7 @@ def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str
         "top_p": validated["top_p"],
         "do_sample": validated["do_sample"],
         "max_new_tokens": validated["max_new_tokens"],
+        "stop": stop_tokens
     }
 
     ent_outputs = []
@@ -423,7 +436,7 @@ async def _inference_worker(queue: asyncio.Queue[dict[str, Any]]) -> None:
         future: asyncio.Future[dict[str, Any]] = job["future"]
         try:
             result = await asyncio.to_thread(
-                _run_inference_pipeline,
+                run_inference_pipeline,
                 job["engine"],
                 job["validated"],
             )
@@ -553,6 +566,31 @@ async def generate_text(request: Request):
     except Exception as exc:
         logging.exception("Generate failed: %s", exc)
         return JSONResponse(status_code=500, content={"error": "Inference failed.", "code": "INFERENCE_FAILED"})
+
+
+@app.post("/evaluate/benchmark")
+async def evaluate_benchmark(request: Request):
+    from app.eval.benchmark_runner import run_benchmark
+    try:
+        payload = await request.json()
+        prompts = payload.get("prompts", [])
+        if not prompts:
+            return JSONResponse(status_code=400, content={"error": "Empty prompt list.", "code": "EMPTY_DATASET"})
+            
+        # Extract general params (MC samples, temp, etc.)
+        validated_params = _validate_generate_request(payload)
+        runtime_engine = _get_engine()
+        
+        # Run benchmark (this will be long-running)
+        # We run it in a thread to avoid blocking the event loop
+        summary = await run_benchmark(prompts, runtime_engine, validated_params)
+        return JSONResponse(status_code=200, content=summary)
+        
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc), "code": "INVALID_INPUT"})
+    except Exception as exc:
+        logging.exception("Benchmark failed: %s", exc)
+        return JSONResponse(status_code=500, content={"error": "Benchmark failed.", "code": "BENCHMARK_ERROR"})
 
 
 @app.get("/version")

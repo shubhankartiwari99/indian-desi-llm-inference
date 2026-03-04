@@ -11,14 +11,15 @@ class GGUFBackend:
             verbose=False,
         )
 
-    def generate(self, prompt: str, max_new_tokens: int = 128) -> str:
+    def generate(self, prompt: str, max_new_tokens: int = 128, stop: list[str] = None) -> str:
+        stop_list = stop if stop else ["</s>"]
         response = self.llm(
             prompt,
             max_tokens=max_new_tokens,
             temperature=0.0,
             top_p=1.0,
             repeat_penalty=1.1,
-            stop=["</s>"]
+            stop=stop_list
         )
 
         return response["choices"][0]["text"].strip()

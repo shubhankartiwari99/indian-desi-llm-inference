@@ -1075,7 +1075,7 @@ class InferenceEngine:
         elif MODEL_BACKEND == "gguf":
             # Clean prompt format for GGUF model - no wrapper leakage
             formatted = (
-                "You are a warm, emotionally intelligent Indian assistant.\n"
+                "You are a warm, Emotionally intelligent Indian assistant.\n"
                 "Respond naturally, like a supportive friend from India.\n"
                 "Slight Hinglish is okay if it feels natural.\n"
                 "Avoid repeating the user's sentence.\n"
@@ -1083,7 +1083,7 @@ class InferenceEngine:
                 f"User: {user_text}\n"
                 "Assistant:"
             )
-            return self.backend.generate(formatted, max_new_tokens)
+            return self.backend.generate(formatted, max_new_tokens, stop=kwargs.get("stop"))
         elif MODEL_BACKEND == "hf":
             raw_output = self.backend.generate(
                 prompt=user_text,
@@ -1093,6 +1093,7 @@ class InferenceEngine:
                 do_sample=kwargs.get("do_sample", True),
                 repetition_penalty=kwargs.get("repetition_penalty", 1.1),
                 no_repeat_ngram_size=kwargs.get("no_repeat_ngram_size", 3),
+                stop=kwargs.get("stop")
             )
             return raw_output[0] if isinstance(raw_output, tuple) else raw_output
 
@@ -1343,7 +1344,14 @@ class InferenceEngine:
         return f"{prefix}: {text}"
 
     def _pack(self, text: str, meta: dict, return_meta: bool):
-        return (text, meta) if return_meta else text
+        # Strip common model-generated prefixes for a cleaner research UI
+        prefixes = ["Assistant:", "Model:", "Response:", "यंत्र मानव:", "सहायक:"]
+        cleaned_text = text.strip()
+        for p in prefixes:
+            if cleaned_text.lower().startswith(p.lower()):
+                cleaned_text = cleaned_text[len(p):].strip()
+                break
+        return (cleaned_text, meta) if return_meta else cleaned_text
 
     def _restore_voice_state_snapshot(self):
         if self._voice_state_turn_snapshot is not None:

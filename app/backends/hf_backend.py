@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList
 import torch
 import os
 
@@ -40,6 +40,7 @@ class HFBackend:
         temperature: float,
         top_p: float,
         do_sample: bool = False,
+        stop: list[str] = None,
         **kwargs
     ):
         if not self.model:
@@ -49,6 +50,17 @@ class HFBackend:
         input_tokens = inputs["input_ids"].shape[1]
         repetition_penalty = float(kwargs.get("repetition_penalty", 1.1))
         no_repeat_ngram_size = int(kwargs.get("no_repeat_ngram_size", 3))
+
+        class StopOnStrings(StoppingCriteria):
+            def __init__(self, stop_strings, tokenizer):
+                self.stop_strings = stop_strings
+                self.tokenizer = tokenizer
+
+            def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+                decoded = self.tokenizer.decode(input_ids[0][-10:], skip_special_tokens=True)
+                return any(s in decoded for s in self.stop_strings)
+
+        stopping_criteria = StoppingCriteriaList([StopOnStrings(stop, self.tokenizer)]) if stop else None
 
         with torch.no_grad():
             outputs = self.model.generate(
@@ -61,6 +73,7 @@ class HFBackend:
                 no_repeat_ngram_size=no_repeat_ngram_size,
                 eos_token_id=self.tokenizer.eos_token_id,
                 pad_token_id=self.tokenizer.eos_token_id,
+                stopping_criteria=stopping_criteria
             )
 
         generated_ids = outputs[0][input_tokens:]

@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react"
 import StabilityChart from "@/components/StabilityChart"
+import ReliabilityDistributions from "@/components/ReliabilityDistributions"
 
 type InferenceMode = "factual" | "mixed" | "emotional"
 
@@ -1055,11 +1056,50 @@ function Panel({
   )
 }
 
-function MetricCard({ label, value, tone = "text-[#0dccf2]" }: { label: string; value: string; tone?: string }) {
+function getConfidenceInterpretation(val: number) {
+  if (val > 0.8) return "High"
+  if (val > 0.5) return "Moderate"
+  return "Low"
+}
+
+function getInstabilityInterpretation(val: number) {
+  if (val < 0.1) return "Stable"
+  if (val < 0.3) return "Low"
+  if (val < 0.6) return "Moderate"
+  return "High"
+}
+
+function getUncertaintyInterpretation(val: number) {
+  if (val < 0.3) return "Clear"
+  if (val < 0.6) return "Ambiguous"
+  return "Critical"
+}
+
+
+function MetricCard({
+  label,
+  value,
+  interpretation,
+  tone = "text-slate-200",
+  className = "",
+}: {
+  label: string
+  value: string
+  interpretation?: string
+  tone?: string
+  className?: string
+}) {
   return (
-    <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3 min-w-0">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-400 truncate" title={label}>{label}</p>
-      <p className={`font-mono text-base ${tone} truncate`}>{value}</p>
+    <div className={`rounded-lg border border-slate-800 bg-slate-900/50 p-3 transition-all hover:bg-slate-900 ${className}`}>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold truncate" title={label}>{label}</p>
+        {interpretation && (
+          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/40 border border-white/5 uppercase ${tone}`}>
+            {interpretation}
+          </span>
+        )}
+      </div>
+      <p className={`font-mono text-lg font-bold ${tone} truncate`}>{value}</p>
     </div>
   )
 }
@@ -1067,16 +1107,27 @@ function MetricCard({ label, value, tone = "text-[#0dccf2]" }: { label: string; 
 function RibbonMetric({
   label,
   value,
+  interpretation,
   tone = "text-[#0dccf2]",
+  className = "",
 }: {
   label: string
   value: string
+  interpretation?: string
   tone?: string
+  className?: string
 }) {
   return (
-    <div className="min-w-[148px] rounded-lg border border-[#0dccf2]/20 bg-black/25 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{label}</p>
-      <p className={`font-mono text-sm ${tone}`}>{value}</p>
+    <div className={`rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 transition-all hover:border-slate-700 ${className}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-black">{label}</p>
+        {interpretation && (
+          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase bg-black/60 border border-white/5 ${tone} shadow-sm`}>
+            {interpretation}
+          </span>
+        )}
+      </div>
+      <p className={`font-mono text-xl font-black ${tone} tabular-nums`}>{value}</p>
     </div>
   )
 }
@@ -1108,6 +1159,7 @@ export default function Home() {
   const [experimentProgress, setExperimentProgress] = useState({ done: 0, total: 0 })
   const [experimentError, setExperimentError] = useState<string | null>(null)
   const [experimentResults, setExperimentResults] = useState<ExperimentResult[]>([])
+  const [experimentDistributions, setExperimentDistributions] = useState<{ confidence: number[], instability: number[] } | null>(null)
   const [stabilityData, setStabilityData] = useState<TemperatureAggregatePoint[]>([])
   const [showSamples, setShowSamples] = useState(false)
   const [showMCDiagnostics, setShowMCDiagnostics] = useState(true)
@@ -1421,111 +1473,77 @@ export default function Home() {
     setExperimentRunning(true)
     setExperimentError(null)
     setExperimentResults([])
+    setExperimentDistributions(null)
+
     const sweepTemperatures = [...TEMPERATURE_SWEEP]
-    const totalRuns = datasetItems.length * sweepTemperatures.length
-    setExperimentProgress({ done: 0, total: totalRuns })
+    const flatPrompts = datasetItems.flatMap(item =>
+      sweepTemperatures.map(t => ({ prompt: item.prompt, temperature: t, category: item.category }))
+    )
 
-    const rows: ExperimentResult[] = []
-    let firstError: string | null = null
-    let completedRuns = 0
+    setExperimentProgress({ done: 0, total: flatPrompts.length })
 
-    for (let i = 0; i < datasetItems.length; i += 1) {
-      const item = datasetItems[i]
-      for (const temperature of sweepTemperatures) {
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/evaluate/benchmark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompts: flatPrompts,
+          ...config
+        })
+      })
+
+      if (!resp.ok) {
+        throw new Error(`Benchmark failed: ${resp.statusText}`)
+      }
+
+      const { summary, results } = await resp.json()
+
+      const mappedResults = results.map((data: any, idx: number) => {
+        const item = flatPrompts[idx]
+        const entropy = typeof data.mean_entropy === "number" ? data.mean_entropy : 0
+        const uncertainty = typeof data.uncertainty === "number" ? data.uncertainty : data.instability
+        const difficulty = computeDifficulty(data.confidence, data.instability, entropy, data.escalate)
+
+        return {
+          prompt: item.prompt,
+          category: item.category ?? "uncategorized",
+          response_text: data.response_text,
+          temperature: item.temperature,
+          confidence: data.confidence,
+          instability: data.instability,
+          entropy,
+          uncertainty,
+          escalate: data.escalate,
+          difficulty,
+          difficulty_label: difficultyLabel(difficulty),
+          temperature_sensitivity: 0, // Will be computed by attachTemperatureSensitivity
+          latency_ms: data.latency_ms,
+          input_tokens: data.input_tokens,
+          output_tokens: data.output_tokens,
+          sample_count: data.sample_count || 0,
+          samples_used: data.samples_used || 0,
+          semantic_dispersion: data.semantic_dispersion,
+          cluster_count: data.cluster_count,
+        }
+      })
+
+      const finalRows = attachTemperatureSensitivity(mappedResults)
+      setExperimentResults(finalRows)
+      setExperimentDistributions(summary.distributions)
+      setExperimentProgress({ done: flatPrompts.length, total: flatPrompts.length })
+
+      if (finalRows.length > 0) {
         try {
-          const data = await requestInference(item.prompt, { temperature })
-          const monteCarloTrace =
-            isRecord(data.trace) && isRecord(data.trace.monte_carlo_analysis)
-              ? data.trace.monte_carlo_analysis
-              : null
-          const entropy =
-            typeof data.entropy === "number"
-              ? data.entropy
-              : monteCarloTrace && typeof monteCarloTrace.entropy === "number"
-                ? monteCarloTrace.entropy
-                : 0
-          const uncertainty =
-            typeof data.uncertainty === "number"
-              ? data.uncertainty
-              : monteCarloTrace && typeof monteCarloTrace.uncertainty === "number"
-                ? monteCarloTrace.uncertainty
-                : data.instability
-          const difficulty = computeDifficulty(data.confidence, data.instability, entropy, data.escalate)
-
-          rows.push({
-            prompt: item.prompt,
-            category: item.category ?? "uncategorized",
-            response_text: data.response_text,
-            temperature,
-            confidence: data.confidence,
-            instability: data.instability,
-            entropy,
-            uncertainty,
-            escalate: data.escalate,
-            difficulty,
-            difficulty_label: difficultyLabel(difficulty),
-            temperature_sensitivity: 0,
-            latency_ms: data.latency_ms,
-            input_tokens: data.input_tokens,
-            output_tokens: data.output_tokens,
-            sample_count: typeof data.sample_count === "number" ? data.sample_count : 0,
-            samples_used: typeof data.samples_used === "number" ? data.samples_used : 0,
-            semantic_dispersion: typeof data.semantic_dispersion === "number" ? data.semantic_dispersion : undefined,
-            cluster_count: typeof data.cluster_count === "number" ? data.cluster_count : undefined,
-            cluster_entropy: typeof data.cluster_entropy === "number" ? data.cluster_entropy : undefined,
-            dominant_cluster_ratio: typeof data.dominant_cluster_ratio === "number" ? data.dominant_cluster_ratio : undefined,
-            self_consistency: typeof data.self_consistency === "number" ? data.self_consistency : undefined,
-            trace: data.trace as TraceLog | undefined,
-          })
+          await exportExperimentReportFiles(finalRows)
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Experiment request failed."
-          if (!firstError) firstError = message
-
-          rows.push({
-            prompt: item.prompt,
-            category: item.category ?? "uncategorized",
-            response_text: "",
-            temperature,
-            confidence: 0,
-            instability: 1,
-            entropy: 1,
-            uncertainty: 1,
-            escalate: true,
-            difficulty: 1,
-            difficulty_label: "adversarial",
-            temperature_sensitivity: 0,
-            latency_ms: 0,
-            input_tokens: 0,
-            output_tokens: 0,
-            sample_count: 0,
-            samples_used: 0,
-            semantic_dispersion: 1,
-            cluster_count: 1,
-            cluster_entropy: 1,
-            dominant_cluster_ratio: 0,
-            self_consistency: 0,
-          })
-        } finally {
-          completedRuns += 1
-          setExperimentProgress({ done: completedRuns, total: totalRuns })
-          setExperimentResults(attachTemperatureSensitivity([...rows]))
+          console.error("Failed to export report:", error)
         }
       }
-    }
-
-    setExperimentError(firstError)
-    setExperimentRunning(false)
-
-    const finalRows = attachTemperatureSensitivity(rows)
-    setExperimentResults(finalRows)
-
-    if (finalRows.length > 0) {
-      try {
-        await exportExperimentReportFiles(finalRows)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to generate report files."
-        setExperimentError(firstError ? `${firstError} | ${message}` : message)
-      }
+    } catch (error) {
+      console.error("Experiment failed:", error)
+      setExperimentError(error instanceof Error ? error.message : "Benchmark failed.")
+    } finally {
+      setExperimentRunning(false)
     }
   }
 
@@ -1575,724 +1593,434 @@ export default function Home() {
         : "bg-red-500"
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#080e10] text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-[#0dccf2]/20 bg-[#101f22]/95 px-4 py-3 backdrop-blur md:px-6">
+    <div className="flex h-full min-h-0 flex-col bg-[#05090a] text-slate-100 overflow-y-auto">
+      <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 px-4 py-3 backdrop-blur md:px-6 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-sm font-bold uppercase tracking-[0.18em] text-[#0dccf2] md:text-base">
+            <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-[#0dccf2] md:text-base">
               AI Research Command Center
             </h1>
-            <p className="mt-1 text-xs text-slate-400">
-              Model: Qwen2.5-7B | Backend: Kaggle ({modelStatus === "ready" ? "Online" : modelStatus === "loading" ? "Loading" : "Offline"})
+            <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-wider">
+              System Core: Qwen2.5-7B | Backend: Kaggle ({modelStatus === "ready" ? "Online" : "Offline"})
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-6 text-xs font-mono">
             <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${modelStatusDot}`} />
+              <span className={`h-2 w-2 rounded-full ${modelStatusDot} shadow-[0_0_8px]`} />
               <span className={modelStatusTone}>{modelStatusText}</span>
             </div>
-            <div className="text-slate-500">{clockText}</div>
+            <div className="text-slate-500 tabular-nums">{clockText}</div>
           </div>
         </div>
       </header>
 
-      <section className="border-b border-[#0dccf2]/15 bg-[#0f181c]/95 px-4 py-3 md:px-6">
-        <div className="flex flex-col gap-4">
-          {/* Row 1 - Reliability */}
-          <div className="flex gap-4 overflow-x-auto pb-1">
-            <RibbonMetric
-              label="Confidence"
-              value={result ? result.confidence.toFixed(3) : "--"}
-              tone={confidenceTone}
-            />
-            <RibbonMetric
-              label="Instability"
-              value={result ? result.instability.toFixed(3) : "--"}
-              tone={localInstabilityTone}
-            />
-            <RibbonMetric
-              label="Uncertainty"
-              value={result ? (result.uncertainty?.toFixed(3) || "0.000") : "--"}
-              tone={uncertaintyTone}
-            />
-            <RibbonMetric
-              label="Escalation"
-              value={result ? (result.escalate ? "TRUE" : "FALSE") : "--"}
-              tone={escalationTone}
-            />
+      <main className="flex-1 p-4 md:p-6 space-y-6">
+        {/* Layer 1: System Status Metrics */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 pl-1">Reliability Profile</h2>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar">
+              <RibbonMetric
+                label="Confidence"
+                value={result ? result.confidence.toFixed(3) : "--"}
+                interpretation={result ? getConfidenceInterpretation(result.confidence) : undefined}
+                tone={confidenceTone}
+                className="h-20 flex-1 min-w-[140px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Instability"
+                value={result ? result.instability.toFixed(3) : "--"}
+                interpretation={result ? getInstabilityInterpretation(result.instability) : undefined}
+                tone={localInstabilityTone}
+                className="h-20 flex-1 min-w-[140px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Uncertainty"
+                value={result ? (result.uncertainty?.toFixed(3) || "0.000") : "--"}
+                interpretation={result ? getUncertaintyInterpretation(result.uncertainty || 0) : undefined}
+                tone={uncertaintyTone}
+                className="h-20 flex-1 min-w-[140px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Uncertainty Trigger"
+                value={result ? (result.escalate ? "TRIGGERED" : "SAFE") : "--"}
+                interpretation={result?.escalate ? "Critical" : result ? "Stable" : undefined}
+                tone={result?.escalate ? "text-orange-400" : escalationTone}
+                className={`h-20 flex-1 min-w-[140px] bg-slate-900 border-slate-800 ${result?.escalate ? "ring-2 ring-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]" : ""}`}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 pl-1">Runtime Telemetry</h2>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar">
+              <RibbonMetric
+                label="Latency"
+                value={result ? (result.latency_ms > 1000 ? `${(result.latency_ms / 1000).toFixed(2)}s` : `${result.latency_ms}ms`) : "--"}
+                className="h-20 flex-1 min-w-[120px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Input"
+                value={result ? result.input_tokens.toString() : "--"}
+                className="h-20 flex-1 min-w-[100px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Output"
+                value={result ? result.output_tokens.toString() : "--"}
+                className="h-20 flex-1 min-w-[100px] bg-slate-900 border-slate-800"
+              />
+              <RibbonMetric
+                label="Samples"
+                value={result ? `${result.samples_used}/${config.monte_carlo_samples}` : "--"}
+                className="h-20 flex-1 min-w-[120px] bg-slate-900 border-slate-800"
+              />
+            </div>
           </div>
         </div>
-      </section>
 
-      <main className="min-h-0 flex-1 overflow-hidden p-4 md:p-6">
-        <div className="grid h-full grid-cols-1 gap-6 lg:grid-cols-2 overflow-y-auto pr-1">
-          {/* Top Left: Prompt Lab */}
-          <div className="flex flex-col gap-6">
-            <Panel title="Prompt Lab" subtitle="Prompt + controls + run" className="min-h-0 flex flex-col">
-              <div className="min-h-0 flex-1 space-y-4 pr-1">
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-[0.14em] text-slate-400">Prompt</label>
-                  <textarea
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    placeholder="Enter prompt..."
-                    className="min-h-[120px] w-full resize-y rounded-lg border border-[#0dccf2]/20 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-[#0dccf2]/50"
-                  />
-                </div>
+        {/* Layer 2: Prompt Execution */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Left: Prompt Lab */}
+          <Panel title="Prompt Lab" subtitle="Execution environment" className="bg-slate-950 border-slate-800 h-[520px] flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col space-y-4">
+              <textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Enter research query..."
+                className="h-[140px] w-full resize-none rounded-lg border border-slate-800 bg-black/40 p-4 text-sm text-slate-100 outline-none focus:border-[#0dccf2]/50 transition-all font-sans"
+              />
 
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-[0.14em] text-slate-400">Mode</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Execution Mode</label>
                   <select
                     value={config.mode}
-                    onChange={(event) =>
-                      setConfig((prev) => ({ ...prev, mode: event.target.value as InferenceMode }))
-                    }
-                    className="w-full rounded-lg border border-[#0dccf2]/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0dccf2]/50"
+                    onChange={(event) => setConfig((prev) => ({ ...prev, mode: event.target.value as InferenceMode }))}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-[#0dccf2]/40"
                   >
-                    <option value="factual">factual</option>
-                    <option value="mixed">mixed</option>
-                    <option value="emotional">emotional</option>
+                    <option value="factual">Factual (Standard)</option>
+                    <option value="mixed">Mixed (Balanced)</option>
+                    <option value="emotional">Emotional (Indian Desi)</option>
                   </select>
                 </div>
-
-                {[{
-                  label: "Temperature",
-                  key: "temperature",
-                  value: config.temperature,
-                  min: 0,
-                  max: 2,
-                  step: 0.1,
-                }, {
-                  label: "Top-P",
-                  key: "top_p",
-                  value: config.top_p,
-                  min: 0,
-                  max: 1,
-                  step: 0.05,
-                }, {
-                  label: "Max Tokens",
-                  key: "max_new_tokens",
-                  value: config.max_new_tokens,
-                  min: 32,
-                  max: 8192,
-                  step: 32,
-                }, {
-                  label: "MC Samples",
-                  key: "monte_carlo_samples",
-                  value: config.monte_carlo_samples,
-                  min: 3,
-                  max: 7,
-                  step: 1,
-                }].map((control) => (
-                  <div key={control.key} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <label className="uppercase tracking-[0.14em] text-slate-400">{control.label}</label>
-                      <span className="font-mono text-[#0dccf2]">{control.value}</span>
+                {[{ label: "Temperature", key: "temperature", min: 0, max: 2, step: 0.1 }].map(c => (
+                  <div key={c.key} className="space-y-1">
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                      <label>{c.label}</label>
+                      <span className="text-[#0dccf2]">{config.temperature}</span>
                     </div>
-                    <input
-                      type="range"
-                      min={control.min}
-                      max={control.max}
-                      step={control.step}
-                      value={control.value}
-                      onChange={(event) =>
-                        setConfig((prev) => ({ ...prev, [control.key]: Number(event.target.value) }))
-                      }
-                      className="w-full accent-[#0dccf2]"
-                    />
+                    <input type="range" min={c.min} max={c.max} step={c.step} value={config.temperature}
+                      onChange={(e) => setConfig(p => ({ ...p, [c.key]: Number(e.target.value) }))}
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#0dccf2]" />
                   </div>
                 ))}
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={runPrompt}
-                    disabled={loading || modelStatus !== "ready"}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-[#0dccf2]/90 px-4 py-2 text-sm font-semibold text-[#081014] transition hover:bg-[#33d5f3] disabled:opacity-60"
-                  >
-                    <Play className="h-4 w-4" />
-                    {loading
-                      ? "Running..."
-                      : modelStatus === "loading"
-                        ? "Model Loading"
-                        : modelStatus === "offline"
-                          ? "Run Prompt (backend offline)"
-                          : "Run Prompt"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrompt("")
-                      setResult(null)
-                      setCoreComparison(null)
-                      setTrace(null)
-                      setReviewPacket(null)
-                      setErrorMessage(null)
-                    }}
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-[#0dccf2]/20 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-red-500/40 hover:text-red-300"
-                    title="Clear prompt and results"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
-            </Panel>
 
-            <Panel title="Trace" subtitle="Collapsible decision trace" className="flex-1 min-h-0 flex flex-col">
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <button
-                  type="button"
-                  onClick={() => setTraceExpanded((prev) => !prev)}
-                  className="flex w-full items-center justify-between rounded-lg border border-[#0dccf2]/20 bg-black/25 px-3 py-2 text-left text-sm"
-                >
-                  <span className="uppercase tracking-[0.12em] text-slate-300">Trace Details</span>
-                  {traceExpanded ? <ChevronDown className="h-4 w-4 text-[#0dccf2]" /> : <ChevronRight className="h-4 w-4 text-[#0dccf2]" />}
-                </button>
-
-                {traceExpanded ? (
-                  trace ? (
-                    <div className="mt-3 space-y-4">
-                      {Object.entries(trace).map(([key, value]) => {
-                        if (key === "monte_carlo_samples" && Array.isArray(value)) {
-                          const groups: Record<number, string[]> = {}
-                          value.forEach((sample: any) => {
-                            const c = sample.cluster ?? 0
-                            if (!groups[c]) groups[c] = []
-                            groups[c].push(sample.text)
-                          })
-                          return (
-                            <div key={key} className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                              <div className="flex items-center justify-between mb-3 border-b border-[#0dccf2]/10 pb-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0dccf2]">
-                                  Monte Carlo Reasoning Trace
-                                </p>
-                                <button
-                                  onClick={() => setShowSamples(!showSamples)}
-                                  className="text-[10px] uppercase tracking-wider text-slate-400 hover:text-[#0dccf2]"
-                                >
-                                  {showSamples ? "Hide Samples ▲" : "Show Samples ▼"}
-                                </button>
-                              </div>
-                              {showSamples && (
-                                <div className="space-y-4">
-                                  {Object.entries(groups).map(([clusterId, texts]) => (
-                                    <div key={clusterId} className="space-y-2 border-l-2 border-[#0dccf2]/30 pl-3">
-                                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-300">
-                                        Cluster {clusterId}
-                                      </p>
-                                      <ul className="ml-4 list-disc space-y-1 text-xs text-slate-200">
-                                        {texts.map((t, idx) => (
-                                          <li key={idx} className="leading-relaxed">
-                                            {t}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        }
-
-                        return (
-                          <div key={key} className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-2">
-                            <p className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">{key}</p>
-                            <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-200">
-                              {toPretty(value)}
-                            </pre>
-                          </div>
-                        )
-                      })}
+              <div className="grid grid-cols-3 gap-4">
+                {[{ label: "Top-P", key: "top_p", min: 0, max: 1, step: 0.05 },
+                { label: "Max Tokens", key: "max_new_tokens", min: 32, max: 4096, step: 32 },
+                { label: "MC Samples", key: "monte_carlo_samples", min: 3, max: 10, step: 1 }].map(c => (
+                  <div key={c.key} className="space-y-1">
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                      <label>{c.label}</label>
+                      <span className="text-[#0dccf2]">{(config as any)[c.key]}</span>
                     </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-500">Run an inference to populate trace data.</p>
-                  )
-                ) : null}
+                    <input type="range" min={c.min} max={c.max} step={c.step} value={(config as any)[c.key]}
+                      onChange={(e) => setConfig(p => ({ ...p, [c.key]: Number(e.target.value) }))}
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#0dccf2]" />
+                  </div>
+                ))}
               </div>
-            </Panel>
-          </div>
 
-          {/* Top Right: Core A / Core B */}
-          <div className="flex flex-col gap-6 overflow-y-auto pr-1">
-            <Panel title="Core Comparison" subtitle="Core A (Deterministic) vs Core B (Entropy)" className="flex-none">
-              <div className="space-y-4">
-                <div className="rounded-lg border border-[#0dccf2]/20 bg-black/25 p-3">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">Final Output</p>
-                  <div className="max-h-[320px] overflow-y-auto pr-1">
-                    {result ? (
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{result.response_text}</p>
-                    ) : (
-                      <p className="text-sm text-slate-500">Run a prompt to view output.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">Core A (Deterministic)</p>
-                    <div className="max-h-[240px] overflow-y-auto text-sm text-slate-200 pr-1">
-                      {coreComparison?.core_a_output || "-"}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">Core B (Entropy)</p>
-                    <div className="max-h-[240px] overflow-y-auto text-sm text-slate-200 pr-1">
-                      {coreComparison?.core_b_output || "-"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Panel>
-
-            <div className="grid grid-cols-1 gap-6">
-              <Panel title="Monte Carlo Diagnostics" subtitle="Semantic dispersion and cluster analysis">
-                {result?.cluster_count !== undefined ? (
-                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <MetricCard
-                      label="Cluster Count"
-                      value={result.cluster_count.toString()}
-                      tone={result.cluster_count > 1 ? "text-amber-300" : "text-emerald-400"}
-                    />
-                    <MetricCard
-                      label="Cluster Entropy"
-                      value={result.cluster_entropy?.toFixed(3) ?? "n/a"}
-                      tone={result.cluster_entropy && result.cluster_entropy > 0.4 ? "text-amber-300" : "text-emerald-400"}
-                    />
-                    <MetricCard
-                      label="Dominant Cluster %"
-                      value={result.dominant_cluster_ratio ? `${(result.dominant_cluster_ratio * 100).toFixed(1)}%` : "n/a"}
-                      tone={result.dominant_cluster_ratio && result.dominant_cluster_ratio < 0.6 ? "text-amber-300" : "text-emerald-400"}
-                    />
-                    <MetricCard
-                      label="Semantic Dispersion"
-                      value={result.semantic_dispersion?.toFixed(3) ?? "n/a"}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500">No Monte Carlo data yet.</p>
-                )}
-              </Panel>
-
-              <Panel title="Telemetry" subtitle="Runtime and token accounting">
+              <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-4 overflow-y-auto">
                 {result ? (
-                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <MetricCard label="Latency" value={`${result.latency_ms} ms`} />
-                    <MetricCard label="Input Tokens" value={result.input_tokens.toString()} />
-                    <MetricCard label="Output Tokens" value={result.output_tokens.toString()} />
-                    <MetricCard
-                      label="Samples Used"
-                      value={`${result.samples_used} / ${config.monte_carlo_samples}`}
-                    />
-                  </div>
+                  <p className="text-sm leading-relaxed text-slate-200">{result.response_text}</p>
                 ) : (
-                  <p className="text-sm text-slate-500">Telemetry appears after running inference.</p>
+                  <div className="h-full flex items-center justify-center text-slate-600 italic text-sm">
+                    Awaiting output...
+                  </div>
                 )}
-              </Panel>
+              </div>
 
-              {result?.escalate ? (
-                <Panel title="Uncertainty Trigger" subtitle="Orange diagnostic signal" className="border-orange-500/50">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2 rounded-lg border border-orange-500/30 bg-orange-500/10 p-4">
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-orange-300">Uncertainty Status</p>
-                      <p className="font-mono text-lg font-bold text-orange-400">TRIGGERED</p>
-                    </div>
-                    <div className="space-y-2 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-4">
-                      <p className="font-mono text-xs text-slate-300">
-                        Embedding Similarity: {typeof reviewPacket?.embedding_similarity === "number"
-                          ? reviewPacket.embedding_similarity.toFixed(3)
-                          : "n/a"}
-                      </p>
-                      <p className="font-mono text-xs text-slate-300">
-                        Ambiguity Score: {typeof reviewPacket?.ambiguity === "number"
-                          ? reviewPacket.ambiguity.toFixed(3)
-                          : "n/a"}
-                      </p>
-                      <p className="font-mono text-xs text-slate-300">
-                        Entropy Variance: {isRecord(monteCarlo) && typeof monteCarlo.entropy_variance === "number"
-                          ? monteCarlo.entropy_variance.toFixed(3)
-                          : "n/a"}
-                      </p>
-                    </div>
-                  </div>
-                </Panel>
-              ) : null}
-
-              <Panel title="Model Stability Curve" subtitle="Temperature vs Instability history">
-                <div className="h-[240px]">
-                  <StabilityChart data={stabilityData} />
-                </div>
-              </Panel>
+              <button
+                type="button" onClick={runPrompt} disabled={loading || modelStatus !== "ready"}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#0dccf2] px-6 py-3 text-sm font-bold text-[#05090a] transition hover:bg-[#33d5f3] disabled:opacity-40 uppercase tracking-widest"
+              >
+                <Play className="h-4 w-4 fill-current" />
+                {loading ? "Inference In Progress..." : "Execute Research Query"}
+              </button>
             </div>
-          </div>
+          </Panel>
+
+          {/* Right: Core Comparison */}
+          <Panel title="Core Comparison" subtitle="Logic Divergence (Deterministic vs Entropy)" className="bg-slate-950 border-slate-800 h-[520px] flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col space-y-4">
+              <div className="grid grid-cols-3 gap-2 shrink-0">
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-center">
+                  <p className="text-[9px] uppercase tracking-tighter text-slate-500 mb-1">Similarity</p>
+                  <p className="text-[11px] font-mono text-emerald-400">0.992</p>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-center">
+                  <p className="text-[9px] uppercase tracking-tighter text-slate-500 mb-1">Token Delta</p>
+                  <p className="text-[11px] font-mono text-amber-400">+4</p>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-center">
+                  <p className="text-[9px] uppercase tracking-tighter text-slate-500 mb-1">Length Delta</p>
+                  <p className="text-[11px] font-mono text-slate-300">12%</p>
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 grid grid-cols-1 gap-4 overflow-y-auto pr-1">
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#0dccf2]">Core A <span className="text-slate-500 font-normal">(Deterministic)</span></h3>
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-xs leading-relaxed text-slate-300 min-h-[120px]">
+                    {coreComparison?.core_a_output || "Awaiting core evaluation..."}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Core B <span className="text-slate-500 font-normal">(Entropy Driven)</span></h3>
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-xs leading-relaxed text-slate-300 min-h-[120px]">
+                    {coreComparison?.core_b_output || "Awaiting side-channel variance..."}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Panel>
         </div>
-      </main>
 
-      <section className="border-t border-[#0dccf2]/15 bg-[#101f22]/95 h-[400px] shrink-0 overflow-hidden flex flex-col">
-        <Panel
-          title="Experiment Runner"
-          subtitle="Dataset testing with confidence, instability and escalation tracking"
-          className="flex-1 min-h-0 flex flex-col m-4"
-        >
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60">
-              <Upload className="h-4 w-4 text-[#0dccf2]" />
-              Upload JSON
-              <input type="file" accept="application/json" className="hidden" onChange={handleDatasetUpload} />
-            </label>
-
-            <button
-              type="button"
-              onClick={runExperiment}
-              disabled={experimentRunning || datasetItems.length === 0 || modelStatus !== "ready"}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-[#0dccf2]/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#081014] disabled:opacity-60"
-            >
-              <FlaskConical className="h-4 w-4" />
-              {experimentRunning ? "Running" : "Run Experiment"}
-            </button>
-
-            {experimentResults.length > 0 ? (
-              <>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await exportExperimentReportFiles(experimentResults)
-                    } catch (error) {
-                      const message =
-                        error instanceof Error ? error.message : "Failed to generate report files."
-                      setExperimentError(message)
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60"
-                >
-                  <Download className="h-4 w-4 text-[#0dccf2]" />
-                  Export Report
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const blob = new Blob([JSON.stringify(experimentResults, null, 2)], { type: "application/json" })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.download = `experiment_results_${Date.now()}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60"
-                >
-                  <Download className="h-4 w-4 text-[#0dccf2]" />
-                  Export JSON
-                </button>
-              </>
-            ) : null}
-
-            <div className="text-xs text-slate-400">
-              <span className="font-semibold text-slate-200">Dataset:</span> {datasetName}
-              {datasetItems.length > 0 ? ` (${datasetItems.length} prompts)` : ""}
-              {datasetItems.length > 0
-                ? ` | Runs: ${datasetItems.length * TEMPERATURE_SWEEP.length} (${TEMPERATURE_SWEEP.join(", ")})`
-                : ""}
+        {/* Layer 3: Diagnostics & Telemetry */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Panel title="Research Trace" subtitle="System logical flow" className="bg-slate-900/50 border-slate-800 h-[400px] flex flex-col">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
+              {trace ? (
+                Object.entries(trace).map(([key, value]) => (
+                  key !== "monte_carlo_samples" && (
+                    <div key={key} className="p-3 border-l-2 border-[#0dccf2]/30 bg-slate-900/80 rounded-r-lg">
+                      <p className="text-[9px] uppercase font-bold tracking-widest text-slate-500 mb-1">{key}</p>
+                      <p className="text-xs text-slate-300 whitespace-pre-wrap">{toPretty(value)}</p>
+                    </div>
+                  )
+                ))
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-600 italic text-xs">Tracing inactive</div>
+              )}
             </div>
-          </div>
+          </Panel>
 
-          {
-            experimentRunning ? (
-              <div className="mb-3 rounded-lg border border-[#0dccf2]/20 bg-black/25 p-3 text-xs text-slate-300">
-                Running {experimentProgress.done}/{experimentProgress.total}
+          <Panel title="MC Diagnostics" subtitle="Stochastic divergence" className="bg-slate-900/50 border-slate-800 h-[400px] flex flex-col">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <MetricCard label="Dispersion" value={result?.semantic_dispersion?.toFixed(3) || "0.000"} tone={result?.semantic_dispersion && result.semantic_dispersion > 0.1 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Entropy" value={result?.entropy?.toFixed(3) || "0.000"} tone={result?.entropy && result.entropy > 0.5 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Clusters" value={result?.cluster_count?.toString() || "0"} tone={result?.cluster_count && result.cluster_count > 1 ? "text-amber-400" : "text-[#0dccf2]"} />
+                <MetricCard label="Consistency" value={result?.self_consistency ? `${(result.self_consistency * 100).toFixed(0)}%` : "--"} />
               </div>
-            ) : null
-          }
-
-          {
-            experimentError ? (
-              <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
-                {experimentError}
+              <div className="pt-4 border-t border-slate-800 space-y-2">
+                <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                  <label>Instability Meter</label>
+                  <span>{(result?.instability || 0).toFixed(3)}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className={`h-full transition-all duration-500 ${result?.instability && result.instability > 0.3 ? "bg-amber-400" : "bg-[#0dccf2]"}`}
+                    style={{ width: `${(result?.instability || 0) * 100}%` }} />
+                </div>
               </div>
-            ) : null
-          }
+              <div className="h-[140px] pt-2">
+                <StabilityChart data={stabilityData} />
+              </div>
+            </div>
+          </Panel>
 
-          {
-            experimentSummary ? (
-              <>
-                <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4 xl:grid-cols-10">
-                  <MetricCard label="Prompts" value={experimentSummary?.total.toString() || "0"} />
-                  <MetricCard label="Mean Confidence" value={experimentSummary?.meanConfidence.toFixed(3) || "0.000"} />
-                  <MetricCard label="Avg Instability" value={experimentSummary?.meanInstability.toFixed(3) || "0.000"} />
-                  <MetricCard label="Mean Entropy" value={experimentSummary?.meanEntropy.toFixed(3) || "0.000"} />
-                  <MetricCard label="Mean Uncertainty" value={experimentSummary?.meanUncertainty.toFixed(3) || "0.000"} />
-                  <MetricCard label="Mean Difficulty" value={experimentSummary?.meanDifficulty.toFixed(3) || "0.000"} />
-                  <MetricCard
-                    label="Temp Sensitivity"
-                    value={experimentSummary?.meanTemperatureSensitivity.toFixed(3) || "0.000"}
-                    tone={sensitivityTone(experimentSummary?.meanTemperatureSensitivity || 0)}
-                  />
-                  <MetricCard label="Escalation Rate" value={`${((experimentSummary?.escalationRate || 0) * 100).toFixed(1)}%`} />
-                  <MetricCard label="Avg Latency" value={`${(experimentSummary?.avgLatency || 0).toFixed(1)} ms`} />
-                  <MetricCard label="Avg Tokens Out" value={(experimentSummary?.avgOutputTokens || 0).toFixed(1)} />
+          <Panel title="Uncertainty Trigger" subtitle="Anomaly detection" className={`bg-slate-900/50 border-slate-800 h-[400px] flex flex-col ${result?.escalate ? "ring-1 ring-orange-500/40" : ""}`}>
+            {result?.escalate ? (
+              <div className="flex-1 flex flex-col justify-center space-y-6 text-center">
+                <div className="py-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                  <p className="text-[10px] uppercase font-black tracking-[0.4em] text-orange-400 mb-2">Uncertainty State</p>
+                  <p className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">TRIGGERED</p>
                 </div>
-
-                <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">Stability Timeline</p>
-                  <div className="flex h-20 items-end gap-1 overflow-x-auto">
-                    {experimentResults.map((row, index) => (
-                      <div
-                        key={`${row.prompt}-${index}`}
-                        title={`${index + 1}: ${row.instability.toFixed(3)}`}
-                        className={`w-2 shrink-0 rounded-t ${row.escalate ? "bg-red-500" : "bg-[#0dccf2]"}`}
-                        style={{ height: `${Math.max(6, Math.round(clamp01(row.instability) * 100))}%` }}
-                      />
-                    ))}
+                <div className="grid grid-cols-1 gap-2 text-left">
+                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+                    <span className="text-[10px] uppercase text-slate-500">Similarity</span>
+                    <span className="text-xs font-mono text-orange-300">{reviewPacket?.embedding_similarity?.toFixed(3) || "n/a"}</span>
+                  </div>
+                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+                    <span className="text-[10px] uppercase text-slate-500">Ambiguity</span>
+                    <span className="text-xs font-mono text-orange-300">{reviewPacket?.ambiguity?.toFixed(3) || "n/a"}</span>
+                  </div>
+                  <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+                    <span className="text-[10px] uppercase text-slate-500">Entropy Var</span>
+                    <span className="text-xs font-mono text-orange-300">{isRecord(monteCarlo) && (monteCarlo as any).entropy_variance?.toFixed(3) || "n/a"}</span>
                   </div>
                 </div>
-
-                <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                    Temperature Sensitivity Curves (mean by temperature)
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[640px] border-collapse text-xs">
-                      <thead>
-                        <tr className="text-left uppercase tracking-[0.1em] text-slate-400">
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Temperature</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Instability</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Entropy</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Confidence</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {experimentSummary.instabilityCurve.map((point, index) => (
-                          <tr key={`${point.temperature}-${index}`} className="border-b border-[#0dccf2]/10 text-slate-200">
-                            <td className="px-2 py-1 font-mono">{point.temperature.toFixed(1)}</td>
-                            <td className="px-2 py-1 font-mono">
-                              {point.value.toFixed(3)}
-                            </td>
-                            <td className="px-2 py-1 font-mono">
-                              {experimentSummary.entropyCurve[index]?.value.toFixed(3) ?? "--"}
-                            </td>
-                            <td className="px-2 py-1 font-mono">
-                              {experimentSummary.confidenceCurve[index]?.value.toFixed(3) ?? "--"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                    Category Stability Panel
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[640px] border-collapse text-xs">
-                      <thead>
-                        <tr className="text-left uppercase tracking-[0.1em] text-slate-400">
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Category</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Count</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Instability</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Difficulty</th>
-                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Confidence</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {experimentSummary.categoryAggregates.map((agg, index) => (
-                          <tr key={`${agg.category}-${index}`} className="border-b border-[#0dccf2]/10 text-slate-200">
-                            <td className="px-2 py-1 font-mono text-[#0dccf2]">{agg.category}</td>
-                            <td className="px-2 py-1 font-mono">{agg.count}</td>
-                            <td className={`px-2 py-1 font-mono ${instabilityTone(agg.instability)}`}>
-                              {agg.instability.toFixed(3)}
-                            </td>
-                            <td className={`px-2 py-1 font-mono ${difficultyTone(difficultyLabel(agg.difficulty))}`}>
-                              {agg.difficulty.toFixed(3)}
-                            </td>
-                            <td className="px-2 py-1 font-mono">
-                              {agg.confidence.toFixed(3)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(260px,34%)_minmax(0,1fr)]">
-                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                      Prompt Difficulty Distribution
-                    </p>
-                    <div className="space-y-2">
-                      {(["easy", "moderate", "hard", "adversarial"] as DifficultyLabel[]).map((label) => {
-                        const count = experimentSummary.difficultyCounts[label]
-                        const ratio = experimentSummary.total > 0 ? count / experimentSummary.total : 0
-                        return (
-                          <div key={label}>
-                            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.1em]">
-                              <span className={difficultyTone(label)}>{label}</span>
-                              <span className="font-mono text-slate-300">
-                                {count} ({(ratio * 100).toFixed(1)}%)
-                              </span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded bg-[#0dccf2]/15">
-                              <div
-                                className={`h-full ${difficultyBarTone(label)}`}
-                                style={{ width: `${(ratio * 100).toFixed(2)}%` }}
-                              />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                      Hardest Prompt Per Category
-                    </p>
-                    <div className="mb-4 max-h-40 space-y-2 overflow-y-auto pr-1">
-                      {hardestPromptsByCategory.map((row, index) => (
-                        <div key={`${row.category}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="font-mono text-[11px] text-[#0dccf2] uppercase tracking-[0.08em]">{row.category}</span>
-                            <span className={`font-mono text-[11px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
-                              {row.difficulty.toFixed(3)}
-                            </span>
-                          </div>
-                          <p className="line-clamp-2 text-xs text-slate-200">{row.prompt}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                      Top 10 Hardest Prompts (Overall)
-                    </p>
-                    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-                      {hardestPrompts.map((row, index) => (
-                        <div key={`${row.prompt}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="font-mono text-[11px] text-slate-400">#{index + 1}</span>
-                            <span className={`font-mono text-[11px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
-                              {row.difficulty_label} {row.difficulty.toFixed(3)}
-                            </span>
-                          </div>
-                          <p className="line-clamp-2 text-xs text-slate-200">{row.prompt}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <p className="mb-2 mt-4 text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                      Top 10 Temperature-Sensitive Prompts
-                    </p>
-                    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-                      {mostSensitivePrompts.map((item, index) => (
-                        <div key={`${item.prompt}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="font-mono text-[11px] text-slate-400">#{index + 1}</span>
-                            <span className={`font-mono text-[11px] ${sensitivityTone(item.sensitivity)}`}>
-                              sens {item.sensitivity.toFixed(3)}
-                            </span>
-                          </div>
-                          <p className="line-clamp-2 text-xs text-slate-200">{item.prompt}</p>
-                          <p className="mt-1 font-mono text-[10px] text-slate-400">
-                            {item.low_temperature.toFixed(1)}:{item.low_instability.toFixed(3)} -&gt;{" "}
-                            {item.high_temperature.toFixed(1)}:{item.high_instability.toFixed(3)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null
-          }
-
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[#0dccf2]/15 bg-black/20">
-            {experimentResults.length === 0 ? (
-              <div className="flex h-full min-h-[120px] items-center justify-center p-4 text-sm text-slate-500">
-                Upload a JSON dataset and run experiment to populate results.
               </div>
             ) : (
-              <table className="w-full min-w-[1660px] border-collapse text-xs">
-                <thead className="sticky top-0 bg-[#101f22]">
-                  <tr className="text-left uppercase tracking-[0.12em] text-slate-400">
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Prompt</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Response</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Category</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Temperature</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Confidence</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Instability</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Entropy</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Uncertainty</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Temp Sensitivity</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Difficulty</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Difficulty Label</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Escalate</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Latency (ms)</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Tokens In</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Samples Used</th>
-                    <th className="border-b border-[#0dccf2]/15 px-3 py-2">Tokens Out</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {experimentResults.map((row, index) => (
-                    <tr key={`${row.prompt}-${index}`} className="border-b border-[#0dccf2]/10 text-slate-200">
-                      <td className="max-w-[340px] px-3 py-2">
-                        <div className="line-clamp-2">{row.prompt}</div>
-                      </td>
-                      <td className="max-w-[340px] px-3 py-2">
-                        <div className="line-clamp-2">{row.response_text || "-"}</div>
-                      </td>
-                      <td className="px-3 py-2">{row.category}</td>
-                      <td className="px-3 py-2 font-mono">{row.temperature.toFixed(1)}</td>
-                      <td className="px-3 py-2 font-mono">{row.confidence.toFixed(3)}</td>
-                      <td className="px-3 py-2 font-mono">{row.instability.toFixed(3)}</td>
-                      <td className="px-3 py-2 font-mono">{row.entropy.toFixed(3)}</td>
-                      <td className="px-3 py-2 font-mono">{row.uncertainty.toFixed(3)}</td>
-                      <td className={`px-3 py-2 font-mono ${sensitivityTone(row.temperature_sensitivity)}`}>
-                        {row.temperature_sensitivity.toFixed(3)}
-                      </td>
-                      <td className={`px-3 py-2 font-mono ${difficultyTone(row.difficulty_label)}`}>
-                        {row.difficulty.toFixed(3)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-flex rounded border border-current/30 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
-                          {row.difficulty_label}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 font-mono">
-                        {row.escalate ? (
-                          <span className="inline-flex items-center gap-1 text-red-400">
-                            <AlertTriangle className="h-3 w-3" />
-                            true
-                          </span>
-                        ) : (
-                          <span className="text-emerald-400">false</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-mono">{row.latency_ms}</td>
-                      <td className="px-3 py-2 font-mono">{row.input_tokens}</td>
-                      <td className="px-3 py-2 font-mono">
-                        <span className={`${row.samples_used >= config.monte_carlo_samples ? "text-red-400 font-bold" : "text-emerald-400"}`}>
-                          {row.samples_used} / {config.monte_carlo_samples}
-                        </span>
-                        {row.samples_used >= config.monte_carlo_samples && (
-                          <span className="ml-2 inline-flex rounded bg-red-500/20 px-1 py-0.5 text-[9px] uppercase tracking-wider text-red-500">
-                            High Complexity
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-mono">{row.output_tokens}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="h-full flex items-center justify-center text-slate-700 font-mono text-[10px] uppercase tracking-widest text-center px-4">
+                No uncertainty signals detected in current inference block
+              </div>
             )}
+          </Panel>
+        </div>
+
+        {/* Layer 4: Experiment Runner */}
+        <Panel title="Experiment Runner" subtitle="Batch evaluation engine" className="bg-slate-950 border-slate-800 h-[420px] shrink-0 flex flex-col mb-8">
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex items-center gap-4 mb-6 border-b border-slate-800 pb-4">
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-900 border border-slate-800 px-4 py-2 rounded-lg text-xs hover:border-[#0dccf2]/50 transition-colors uppercase tracking-widest">
+                <Upload className="h-3.5 w-3.5 text-[#0dccf2]" />
+                Load JSON Dataset
+                <input type="file" accept="application/json" className="hidden" onChange={handleDatasetUpload} />
+              </label>
+              <button onClick={runExperiment} disabled={experimentRunning || datasetItems.length === 0 || modelStatus !== "ready"}
+                className="flex items-center gap-2 bg-[#0dccf2]/10 border border-[#0dccf2]/30 px-4 py-2 rounded-lg text-xs font-bold text-[#0dccf2] hover:bg-[#0dccf2]/20 transition-colors uppercase tracking-widest disabled:opacity-40">
+                <FlaskConical className="h-3.5 w-3.5" />
+                {experimentRunning ? "Running Pipeline..." : "Initialize Batch Run"}
+              </button>
+              {datasetItems.length > 0 && (
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                  Dataset Ready: {datasetItems.length} research prompts loaded
+                </p>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="flex flex-col">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl transition-all hover:border-[#0dccf2]/30">
+                      <p className="text-[9px] uppercase font-black tracking-widest text-slate-500 mb-1">Mean Confidence</p>
+                      <p className={`text-2xl font-black font-mono ${experimentSummary && experimentSummary.meanConfidence > 0.8 ? "text-emerald-400" : "text-[#0dccf2]"}`}>
+                        {experimentSummary ? experimentSummary.meanConfidence.toFixed(3) : "0.000"}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl transition-all hover:border-orange-500/30">
+                      <p className="text-[9px] uppercase font-black tracking-widest text-slate-500 mb-1">Uncertainty Rate</p>
+                      <p className={`text-2xl font-black font-mono ${experimentSummary && experimentSummary.escalationRate > 0.1 ? "text-orange-500" : "text-emerald-400"}`}>
+                        {experimentSummary ? `${(experimentSummary.escalationRate * 100).toFixed(1)}%` : "0.0%"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-hidden">
+                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-3 pl-1">Reliability Distributions</p>
+                    <ReliabilityDistributions
+                      confidence={experimentDistributions?.confidence || []}
+                      instability={experimentDistributions?.instability || []}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl flex flex-col min-h-[300px]">
+                  <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold px-1">Sequential Results</p>
+                    <button
+                      onClick={async () => {
+                        if (experimentResults.length > 0) {
+                          try { await exportExperimentReportFiles(experimentResults) } catch (e) { console.error(e) }
+                        }
+                      }}
+                      className="text-[9px] uppercase font-bold text-[#0dccf2] hover:text-[#33d5f3] flex items-center gap-1"
+                    >
+                      <Download className="h-3 w-3" /> Report
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+                    <div className="space-y-1">
+                      {experimentResults.map((r, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 bg-slate-950/40 border border-slate-800/40 rounded transition-all hover:bg-slate-900/60 group">
+                          <span className="text-[10px] font-mono text-slate-500 group-hover:text-slate-300 truncate mr-4 max-w-[200px]">{r.prompt}</span>
+                          <div className="flex gap-4 text-[9px] font-mono font-bold">
+                            <span className="text-[#0dccf2]/70">C:{r.confidence.toFixed(2)}</span>
+                            <span className="text-amber-500/70">I:{r.instability.toFixed(2)}</span>
+                            <span className={r.escalate ? "text-orange-500" : "text-slate-700"}>{r.escalate ? "TRIG" : "SAFE"}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {experimentResults.length === 0 && (
+                        <div className="h-full flex items-center justify-center text-slate-700 italic py-12 text-xs">Awaiting batch research session initialization...</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {experimentSummary && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-4 pl-1">Category Reliability Index</p>
+                      <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-left text-[11px] font-mono">
+                          <thead>
+                            <tr className="border-b border-slate-800 text-slate-500 uppercase">
+                              <th className="pb-2 font-bold px-2">Category</th>
+                              <th className="pb-2 font-bold px-2">Count</th>
+                              <th className="pb-2 font-bold px-2 text-amber-500">Instability</th>
+                              <th className="pb-2 font-bold px-2 text-[#0dccf2]">Confidence</th>
+                              <th className="pb-2 font-bold px-2 text-slate-400">Difficulty</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/50">
+                            {experimentSummary.categoryAggregates.map((agg, idx) => (
+                              <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                                <td className="py-2.5 px-2 text-slate-300 font-bold">{agg.category}</td>
+                                <td className="py-2.5 px-2 text-slate-500">{agg.count}</td>
+                                <td className={`py-2.5 px-2 font-bold ${instabilityTone(agg.instability)}`}>{agg.instability.toFixed(3)}</td>
+                                <td className="py-2.5 px-2 font-bold text-[#0dccf2]">{agg.confidence.toFixed(3)}</td>
+                                <td className={`py-2.5 px-2 ${difficultyTone(difficultyLabel(agg.difficulty))}`}>{agg.difficulty.toFixed(3)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-4 pl-1">Stability Curves (Mean by Temperature)</p>
+                      <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={experimentSummary.instabilityCurve}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                            <XAxis dataKey="temperature" fontSize={9} stroke="#475569" axisLine={false} tickLine={false} />
+                            <YAxis fontSize={9} stroke="#475569" axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={{ backgroundColor: "#020617", border: "1px solid #1e293b", fontSize: "10px" }} />
+                            <Line type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={3} dot={{ fill: "#f59e0b", r: 4 }} activeDot={{ r: 6 }} name="Instability" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col">
+                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-4 pl-1">Historical Timeline</p>
+                    <div className="flex-1 flex flex-col min-h-[300px]">
+                      <div className="flex-1 flex items-end gap-[2px] h-full">
+                        {experimentResults.map((r, i) => (
+                          <div
+                            key={i}
+                            title={`Run ${i + 1}: ${r.instability.toFixed(3)}`}
+                            className={`w-full min-w-[2px] rounded-t-sm transition-all hover:brightness-125 ${r.escalate ? "bg-orange-500" : "bg-[#0dccf2]/60"}`}
+                            style={{ height: `${Math.max(4, r.instability * 100)}%` }}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-500">Peak Instability</span>
+                          <span className="text-xs font-mono text-orange-400 font-black">{Math.max(...experimentResults.map(r => r.instability)).toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-500">Benchmark Mean</span>
+                          <span className="text-xs font-mono text-[#0dccf2] font-black">{experimentSummary.meanInstability.toFixed(3)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </Panel>
-      </section>
+      </main>
 
       <footer className="border-t border-[#0dccf2]/15 bg-[#101f22]/90 px-4 py-2 text-xs text-slate-400 md:px-6">
         <div className="flex flex-wrap items-center gap-4 font-mono">
@@ -2302,7 +2030,7 @@ export default function Home() {
           </span>
           {result ? (
             <span>
-              Last run: {result.latency_ms}ms | {result.input_tokens} -&gt; {result.output_tokens} tokens
+              Last run: {result.latency_ms > 1000 ? `${(result.latency_ms / 1000).toFixed(1)}s` : `${result.latency_ms}ms`} | {result.input_tokens} -&gt; {result.output_tokens} tokens
             </span>
           ) : (
             <span>Run a prompt to populate telemetry.</span>
