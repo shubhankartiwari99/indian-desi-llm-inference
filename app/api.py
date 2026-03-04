@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import json
@@ -41,7 +42,16 @@ app.add_middleware(
 
 MAX_PROMPT_LENGTH = 10000
 ALLOWED_LANGS = {"en", "hi"}
-_REQUEST_KEYS = {"prompt", "emotional_lang", "mode", "temperature", "top_p", "max_new_tokens", "do_sample"}
+_REQUEST_KEYS = {
+    "prompt",
+    "emotional_lang",
+    "mode",
+    "temperature",
+    "top_p",
+    "max_new_tokens",
+    "do_sample",
+    "monte_carlo_samples",
+}
 _TRACE_KEYS = ("turn", "guardrail", "skeleton", "tone_profile", "selection", "replay_hash")
 _ALLOWED_MODES = {"", "factual", "emotional", "mixed"}
 _MODE_ALIASES = {"explanatory": "factual"}
@@ -71,6 +81,9 @@ def build_prompt(mode: str, user_prompt: str):
 _engine: InferenceEngine | None = None
 _engine_lock = threading.Lock()
 _engine_initialized = False
+_request_queue: asyncio.Queue[dict[str, Any]] | None = None
+_request_worker: asyncio.Task[None] | None = None
+_request_worker_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _resolve_model_dir() -> str:
@@ -178,6 +191,14 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(ds_val, bool):
         raise ValueError("Invalid do_sample.")
 
+    mc_samples = payload.get("monte_carlo_samples", 5)
+    if mc_samples is None:
+        mc_samples = 5
+    if not isinstance(mc_samples, int) or isinstance(mc_samples, bool):
+        raise ValueError("Invalid monte_carlo_samples.")
+    if mc_samples < 3 or mc_samples > 7:
+        raise ValueError("Invalid monte_carlo_samples.")
+
     return {
         "prompt": prompt,
         "emotional_lang": lang,
@@ -186,6 +207,7 @@ def _validate_generate_request(payload: dict[str, Any]) -> dict[str, Any]:
         "top_p": top_p,
         "max_new_tokens": max_new_tokens,
         "do_sample": ds_val,
+        "monte_carlo_samples": mc_samples,
     }
 
 
@@ -260,6 +282,180 @@ def _build_api_trace(prompt: str, emotional_lang: str) -> dict[str, Any]:
     return sealed_trace
 
 
+def _run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str, Any]) -> dict[str, Any]:
+    structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
+    sample_count = validated["monte_carlo_samples"]
+
+    _t0 = datetime.datetime.now()
+    det_response_text, det_meta = runtime_engine.generate(
+        structured_prompt,
+        return_meta=True,
+        temperature=0.0,
+        top_p=1.0,
+        do_sample=False,
+        max_new_tokens=validated["max_new_tokens"],
+    )
+
+    entropy_kwargs = {
+        "temperature": validated["temperature"],
+        "top_p": validated["top_p"],
+        "do_sample": validated["do_sample"],
+        "max_new_tokens": validated["max_new_tokens"],
+    }
+
+    if hasattr(runtime_engine, "generate_monte_carlo"):
+        entropy_results = runtime_engine.generate_monte_carlo(
+            structured_prompt,
+            sample_count=sample_count,
+            max_new_tokens=validated["max_new_tokens"],
+            temperature=validated["temperature"],
+            top_p=validated["top_p"],
+            do_sample=validated["do_sample"],
+        )
+    else:
+        entropy_results = [
+            runtime_engine.generate(
+                structured_prompt,
+                return_meta=True,
+                **entropy_kwargs,
+            )
+            for _ in range(sample_count)
+        ]
+
+    ent_outputs = [res[0] for res in entropy_results]
+    ent_metas = [res[1] for res in entropy_results]
+    core_b_output = ent_outputs[0] if ent_outputs else det_response_text
+
+    det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
+    ent_token_counts = [meta.get("output_tokens", len(out.split())) for out, meta in zip(ent_outputs, ent_metas)]
+    first_entropy_token_count = ent_token_counts[0] if ent_token_counts else 0
+
+    analysis = evaluate_dual_plane(
+        det_response_text,
+        ent_outputs,
+        det_token_count,
+        ent_token_counts,
+    )
+
+    trace_data = _build_api_trace(structured_prompt, validated["emotional_lang"])
+    trace_data["monte_carlo_analysis"] = {
+        "sample_count": analysis["sample_count"],
+        "entropy_consistency": analysis["entropy_consistency"],
+        "entropy_variance": analysis["entropy_variance"],
+        "semantic_dispersion": analysis["semantic_dispersion"],
+        "pairwise_disagreement_entropy": analysis["pairwise_disagreement_entropy"],
+        "det_entropy_similarity": analysis["det_entropy_similarity"],
+        "entropy": analysis["entropy"],
+        "uncertainty": analysis["uncertainty"],
+        "uncertainty_level": analysis["uncertainty_level"],
+    }
+    
+    trace_log = []
+    labels = analysis.get("cluster_labels", [])
+    for idx, sample in enumerate(ent_outputs):
+        label = labels[idx] if idx < len(labels) else 0
+        trace_log.append({
+            "text": sample,
+            "cluster": int(label)
+        })
+        
+    trace_data["monte_carlo_samples"] = trace_log
+
+    _latency_ms = round((datetime.datetime.now() - _t0).total_seconds() * 1000, 2)
+
+    response_payload = {
+        "response_text": det_response_text,
+        "latency_ms": _latency_ms,
+        "input_tokens": det_meta.get("input_tokens", 0),
+        "output_tokens": det_token_count,
+        "confidence": analysis["confidence"],
+        "instability": analysis["instability"],
+        "entropy": analysis["entropy"],
+        "uncertainty": analysis["uncertainty"],
+        "escalate": analysis["escalate"],
+        "sample_count": analysis["sample_count"],
+        "semantic_dispersion": analysis["semantic_dispersion"],
+        "cluster_count": analysis["cluster_count"],
+        "cluster_entropy": analysis["cluster_entropy"],
+        "dominant_cluster_ratio": analysis["dominant_cluster_ratio"],
+        "self_consistency": analysis["self_consistency"],
+        "samples": ent_outputs,
+        "core_comparison": {
+            "core_a_output": det_response_text,
+            "core_b_output": core_b_output,
+            "embedding_similarity": analysis["det_entropy_similarity"],
+            "token_delta": abs(det_token_count - first_entropy_token_count),
+            "length_delta": abs(len(det_response_text) - len(core_b_output)),
+        },
+        "trace": trace_data,
+    }
+
+    if analysis["escalate"]:
+        response_payload["review_packet"] = {
+            "entropy_samples": ent_outputs,
+            "embedding_similarity": analysis["embedding_similarity"],
+            "ambiguity": analysis["ambiguity"],
+        }
+
+    return response_payload
+
+
+async def _inference_worker(queue: asyncio.Queue[dict[str, Any]]) -> None:
+    while True:
+        job = await queue.get()
+        future: asyncio.Future[dict[str, Any]] = job["future"]
+        try:
+            result = await asyncio.to_thread(
+                _run_inference_pipeline,
+                job["engine"],
+                job["validated"],
+            )
+            if not future.cancelled():
+                future.set_result(result)
+        except Exception as exc:
+            if not future.cancelled():
+                future.set_exception(exc)
+        finally:
+            queue.task_done()
+
+
+async def _ensure_inference_worker() -> asyncio.Queue[dict[str, Any]]:
+    global _request_queue
+    global _request_worker
+    global _request_worker_loop
+
+    loop = asyncio.get_running_loop()
+    needs_new_worker = (
+        _request_queue is None
+        or _request_worker is None
+        or _request_worker.done()
+        or _request_worker_loop is not loop
+    )
+
+    if needs_new_worker:
+        _request_queue = asyncio.Queue()
+        _request_worker = loop.create_task(_inference_worker(_request_queue))
+        _request_worker_loop = loop
+        logging.info("Inference queue worker started.")
+
+    return _request_queue
+
+
+async def _enqueue_inference(runtime_engine: InferenceEngine, validated: dict[str, Any]) -> dict[str, Any]:
+    queue = await _ensure_inference_worker()
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[dict[str, Any]] = loop.create_future()
+
+    await queue.put(
+        {
+            "engine": runtime_engine,
+            "validated": validated,
+            "future": future,
+        }
+    )
+    return await future
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse(
@@ -272,23 +468,46 @@ def index(request: Request):
 
 
 @app.on_event("startup")
-def load_engine_on_startup():
+async def load_engine_on_startup():
     # Tests can disable eager load and inject their own stub engine.
     if os.environ.get("SKIP_ENGINE_STARTUP") == "1" or os.environ.get("PYTEST_CURRENT_TEST"):
         logging.info("Skipping startup engine initialization.")
         return
 
     _initialize_engine_once()
+    await _ensure_inference_worker()
+
+
+@app.on_event("shutdown")
+async def shutdown_inference_queue_worker():
+    global _request_queue
+    global _request_worker
+    global _request_worker_loop
+
+    if _request_worker is not None and not _request_worker.done():
+        _request_worker.cancel()
+        try:
+            await _request_worker
+        except asyncio.CancelledError:
+            pass
+
+    _request_queue = None
+    _request_worker = None
+    _request_worker_loop = None
 
 
 @app.get("/health")
 def health_check():
+    queue_depth = _request_queue.qsize() if _request_queue is not None else 0
+    worker_running = bool(_request_worker is not None and not _request_worker.done())
     return JSONResponse(
         status_code=200,
         content={
             "status": "ok",
             "version": ENGINE_VERSION,
             "engine_ready": _engine_initialized,
+            "queue_depth": queue_depth,
+            "queue_worker_running": worker_running,
         },
     )
 
@@ -312,89 +531,7 @@ async def generate_text(request: Request):
         return JSONResponse(status_code=503, content={"error": str(exc), "code": "ENGINE_NOT_READY"})
 
     try:
-        structured_prompt = build_prompt(validated.get("mode", ""), validated["prompt"])
-        
-        # Deterministic
-        _t0 = datetime.datetime.now()
-        det_response_text, det_meta = runtime_engine.generate(
-            structured_prompt,
-            return_meta=True,
-            temperature=0.0,
-            top_p=1.0,
-            do_sample=False,
-            max_new_tokens=validated["max_new_tokens"],
-        )
-        
-        # 5x Entropy runs (Monte Carlo execution for robust uncertainty estimation)
-        from concurrent.futures import ThreadPoolExecutor
-        
-        def run_entropy():
-            kwargs = {
-                "temperature": validated["temperature"],
-                "top_p": validated["top_p"],
-                "do_sample": validated["do_sample"],
-                "max_new_tokens": validated["max_new_tokens"],
-            }
-            return runtime_engine.generate(
-                structured_prompt,
-                return_meta=True,
-                **kwargs
-            )
-
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            entropy_results = list(executor.map(lambda _: run_entropy(), range(5)))
-            
-        ent_outputs = [res[0] for res in entropy_results]
-        ent_metas = [res[1] for res in entropy_results]
-        core_b_output = ent_outputs[0] if ent_outputs else ""
-        
-        # We can use the first entropy run's token count for backwards compatibility,
-        # or we could pass the entire list. `evaluate_dual_plane` now expects a list.
-        det_token_count = det_meta.get("output_tokens", len(det_response_text.split()))
-        ent_token_counts = [meta.get("output_tokens", len(out.split())) for out, meta in zip(ent_outputs, ent_metas)]
-        first_entropy_token_count = ent_token_counts[0] if ent_token_counts else 0
-        
-        analysis = evaluate_dual_plane(
-            det_response_text,
-            ent_outputs,
-            det_token_count,
-            ent_token_counts
-        )
-
-        trace_data = _build_api_trace(structured_prompt, validated["emotional_lang"])
-        trace_data["monte_carlo_analysis"] = {
-            "entropy_consistency": analysis["entropy_consistency"],
-            "entropy_variance": analysis["entropy_variance"],
-            "det_entropy_similarity": analysis["det_entropy_similarity"],
-        }
-
-        _latency_ms = round((datetime.datetime.now() - _t0).total_seconds() * 1000, 2)
-
-        response_payload = {
-            "response_text": det_response_text,
-            "latency_ms": _latency_ms,
-            "input_tokens": det_meta.get("input_tokens", 0),
-            "output_tokens": det_token_count,
-            "confidence": analysis["confidence"],
-            "instability": analysis["instability"],
-            "escalate": analysis["escalate"],
-            "core_comparison": {
-                "core_a_output": det_response_text,
-                "core_b_output": core_b_output,
-                "embedding_similarity": analysis["det_entropy_similarity"],
-                "token_delta": abs(det_token_count - first_entropy_token_count),
-                "length_delta": abs(len(det_response_text) - len(core_b_output)),
-            },
-            "trace": trace_data,
-        }
-        
-        if analysis["escalate"]:
-            response_payload["review_packet"] = {
-                "entropy_samples": ent_outputs,
-                "embedding_similarity": analysis["embedding_similarity"],
-                "ambiguity": analysis["ambiguity"],
-            }
-            
+        response_payload = await _enqueue_inference(runtime_engine, validated)
         return JSONResponse(status_code=200, content=response_payload)
     except Exception as exc:
         logging.exception("Generate failed: %s", exc)

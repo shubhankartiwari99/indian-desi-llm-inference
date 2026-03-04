@@ -4,7 +4,7 @@ import copy
 import torch
 import re
 import datetime
-from typing import Optional
+from typing import Any, Optional
 from app.engine_config import MODEL_BACKEND
 from app.model_loader import ModelLoader
 from app.runtime_identity import verify_runtime_identity
@@ -1608,6 +1608,24 @@ class InferenceEngine:
             # Approximate fallback if backend didn't provide it
             meta["input_tokens"] = len(prompt.split()) * 2
         return (text, meta) if return_meta else text
+
+    def generate_monte_carlo(
+        self,
+        prompt: str,
+        sample_count: int = 5,
+        max_new_tokens: int = 96,
+        **kwargs,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        outputs: list[tuple[str, dict[str, Any]]] = []
+        for _ in range(sample_count):
+            text, meta = self.generate(
+                prompt,
+                max_new_tokens=max_new_tokens,
+                return_meta=True,
+                **kwargs,
+            )
+            outputs.append((text, meta))
+        return outputs
 
     @torch.no_grad()
     def _generate_internal(self, prompt: str, max_new_tokens: int = 96, return_meta: bool = False, **kwargs):

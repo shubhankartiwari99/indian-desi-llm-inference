@@ -20,6 +20,7 @@ type InferenceConfig = {
   temperature: number
   top_p: number
   max_new_tokens: number
+  monte_carlo_samples: number
 }
 
 type ReviewPacket = {
@@ -43,12 +44,28 @@ type InferenceResult = {
   output_tokens: number
   confidence: number
   instability: number
+  entropy?: number
+  uncertainty?: number
   escalate: boolean
+  sample_count?: number
+  semantic_dispersion?: number
+  cluster_count?: number
+  cluster_entropy?: number
+  dominant_cluster_ratio?: number
+  self_consistency?: number
+}
+
+type TraceLog = {
+  monte_carlo_samples?: {
+    text: string
+    cluster: number
+  }[]
+  [key: string]: unknown
 }
 
 type InferenceApiResponse = InferenceResult & {
   core_comparison?: CoreComparison
-  trace?: Record<string, unknown>
+  trace?: TraceLog
   review_packet?: ReviewPacket
 }
 
@@ -57,15 +74,77 @@ type ExperimentItem = {
   category?: string
 }
 
+const PROMPT_CATEGORIES = [
+  "factual",
+  "reasoning",
+  "math",
+  "coding",
+  "creative",
+  "philosophical",
+  "emotional",
+  "safety",
+  "instruction"
+] as const;
+
+type PromptCategory = typeof PROMPT_CATEGORIES[number] | string;
+
+type DifficultyLabel = "easy" | "moderate" | "hard" | "adversarial"
+
 type ExperimentResult = {
   prompt: string
   category: string
+  response_text: string
+  temperature: number
   confidence: number
   instability: number
+  entropy: number
+  uncertainty: number
   escalate: boolean
+  difficulty: number
+  difficulty_label: DifficultyLabel
+  temperature_sensitivity: number
   latency_ms: number
   input_tokens: number
   output_tokens: number
+  sample_count: number
+  semantic_dispersion?: number
+  cluster_count?: number
+  cluster_entropy?: number
+  dominant_cluster_ratio?: number
+  self_consistency?: number
+  trace?: TraceLog
+}
+
+type ModelStatus = "ready" | "loading" | "offline"
+
+type TemperatureAggregatePoint = {
+  temperature: number
+  value: number
+}
+
+type CategoryAggregatePoint = {
+  category: string
+  count: number
+  instability: number
+  entropy: number
+  confidence: number
+  difficulty: number
+  cluster_count: number
+  cluster_entropy: number
+  sample_count?: number
+  semantic_dispersion?: number
+  dominant_cluster_ratio?: number
+  self_consistency?: number
+}
+
+type PromptTemperatureStats = {
+  prompt: string
+  category: string
+  low_temperature: number
+  high_temperature: number
+  low_instability: number
+  high_instability: number
+  sensitivity: number
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -77,6 +156,188 @@ function clamp01(value: number): number {
   if (value < 0) return 0
   if (value > 1) return 1
   return value
+}
+
+function computeDifficulty(
+  confidence: number,
+  instability: number,
+  entropy: number,
+  escalate: boolean,
+): number {
+  const score =
+    0.35 * clamp01(instability) +
+    0.35 * clamp01(entropy) +
+    0.2 * (1 - clamp01(confidence)) +
+    0.1 * (escalate ? 1 : 0)
+  return clamp01(score)
+}
+
+function difficultyLabel(score: number): DifficultyLabel {
+  if (score < 0.25) return "easy"
+  if (score < 0.5) return "moderate"
+  if (score < 0.7) return "hard"
+  return "adversarial"
+}
+
+function difficultyTone(label: DifficultyLabel): string {
+  if (label === "easy") return "text-emerald-400"
+  if (label === "moderate") return "text-amber-300"
+  if (label === "hard") return "text-orange-300"
+  return "text-red-400"
+}
+
+function difficultyBarTone(label: DifficultyLabel): string {
+  if (label === "easy") return "bg-emerald-500"
+  if (label === "moderate") return "bg-amber-400"
+  if (label === "hard") return "bg-orange-400"
+  return "bg-red-500"
+}
+
+function sensitivityTone(value: number): string {
+  if (value <= 0.15) return "text-emerald-400"
+  if (value <= 0.35) return "text-amber-300"
+  return "text-red-400"
+}
+
+function instabilityTone(value: number): string {
+  if (value <= 0.25) return "text-emerald-400"
+  if (value <= 0.4) return "text-amber-300"
+  return "text-red-400"
+}
+
+function entropyTone(value: number): string {
+  if (value <= 0.25) return "text-emerald-400"
+  if (value <= 0.4) return "text-amber-300"
+  return "text-red-400"
+}
+
+function toTemperatureKey(value: number): number {
+  return Number(value.toFixed(2))
+}
+
+function makePromptKey(prompt: string, category: string): string {
+  return `${category}\u241f${prompt}`
+}
+
+function buildPromptTemperatureStats(rows: ExperimentResult[]): Map<string, PromptTemperatureStats> {
+  const grouped = new Map<string, { prompt: string; category: string; points: Array<{ temperature: number; instability: number }> }>()
+
+  for (const row of rows) {
+    const key = makePromptKey(row.prompt, row.category)
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.points.push({ temperature: row.temperature, instability: row.instability })
+    } else {
+      grouped.set(key, {
+        prompt: row.prompt,
+        category: row.category,
+        points: [{ temperature: row.temperature, instability: row.instability }],
+      })
+    }
+  }
+
+  const out = new Map<string, PromptTemperatureStats>()
+  for (const [key, group] of grouped.entries()) {
+    const points = [...group.points].sort((a, b) => a.temperature - b.temperature)
+    const low = points[0]
+    const high = points[points.length - 1]
+    out.set(key, {
+      prompt: group.prompt,
+      category: group.category,
+      low_temperature: low.temperature,
+      high_temperature: high.temperature,
+      low_instability: low.instability,
+      high_instability: high.instability,
+      sensitivity: high.instability - low.instability,
+    })
+  }
+
+  return out
+}
+
+function attachTemperatureSensitivity(rows: ExperimentResult[]): ExperimentResult[] {
+  const stats = buildPromptTemperatureStats(rows)
+  return rows.map((row) => ({
+    ...row,
+    temperature_sensitivity: stats.get(makePromptKey(row.prompt, row.category))?.sensitivity ?? 0,
+  }))
+}
+
+function aggregateByTemperature(
+  rows: ExperimentResult[],
+  selector: (row: ExperimentResult) => number,
+): TemperatureAggregatePoint[] {
+  const grouped = new Map<number, { sum: number; count: number }>()
+  for (const row of rows) {
+    const key = toTemperatureKey(row.temperature)
+    const value = selector(row)
+    if (!Number.isFinite(value)) continue
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.sum += value
+      existing.count += 1
+    } else {
+      grouped.set(key, { sum: value, count: 1 })
+    }
+  }
+
+  return [...grouped.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([temperature, aggregate]) => ({
+      temperature,
+      value: aggregate.count ? aggregate.sum / aggregate.count : 0,
+    }))
+}
+
+function aggregateByCategory(
+  rows: ExperimentResult[]
+): CategoryAggregatePoint[] {
+  const grouped = new Map<string, { count: number; instability: number; entropy: number; confidence: number; difficulty: number; cluster_count: number; cluster_entropy: number; sample_count: number; semantic_dispersion: number; dominant_cluster_ratio: number }>()
+
+  for (const row of rows) {
+    const existing = grouped.get(row.category)
+    if (existing) {
+      existing.count += 1
+      existing.instability += row.instability
+      existing.entropy += row.entropy
+      existing.confidence += row.confidence
+      existing.difficulty += row.difficulty
+      existing.cluster_count += row.cluster_count ?? 0
+      existing.cluster_entropy += row.cluster_entropy ?? 0
+      existing.sample_count += row.sample_count ?? 0
+      existing.semantic_dispersion += row.semantic_dispersion ?? 0
+      existing.dominant_cluster_ratio += row.dominant_cluster_ratio ?? 0
+    } else {
+      grouped.set(row.category, {
+        count: 1,
+        instability: row.instability,
+        entropy: row.entropy,
+        confidence: row.confidence,
+        difficulty: row.difficulty,
+        cluster_count: row.cluster_count ?? 0,
+        cluster_entropy: row.cluster_entropy ?? 0,
+        sample_count: row.sample_count ?? 0,
+        semantic_dispersion: row.semantic_dispersion ?? 0,
+        dominant_cluster_ratio: row.dominant_cluster_ratio ?? 0,
+      })
+    }
+  }
+
+  return [...grouped.entries()]
+    .map(([category, agg]) => ({
+      category,
+      count: agg.count,
+      instability: agg.count ? agg.instability / agg.count : 0,
+      entropy: agg.count ? agg.entropy / agg.count : 0,
+      confidence: agg.count ? agg.confidence / agg.count : 0,
+      difficulty: agg.count ? agg.difficulty / agg.count : 0,
+      cluster_count: agg.count ? agg.cluster_count / agg.count : 0,
+      cluster_entropy: agg.count ? agg.cluster_entropy / agg.count : 0,
+      sample_count: agg.count ? agg.sample_count / agg.count : 0,
+      semantic_dispersion: agg.count ? agg.semantic_dispersion / agg.count : 0,
+      dominant_cluster_ratio: agg.count ? agg.dominant_cluster_ratio / agg.count : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
 }
 
 function toPretty(value: unknown): string {
@@ -116,6 +377,54 @@ function parseInferenceResponse(payload: unknown): InferenceApiResponse {
 
   if (typeof payload.escalate !== "boolean") {
     throw new Error("Missing escalate in inference response.")
+  }
+
+  if ("entropy" in payload && payload.entropy !== undefined) {
+    if (typeof payload.entropy !== "number" || Number.isNaN(payload.entropy)) {
+      throw new Error("Invalid entropy in inference response.")
+    }
+  }
+
+  if ("uncertainty" in payload && payload.uncertainty !== undefined) {
+    if (typeof payload.uncertainty !== "number" || Number.isNaN(payload.uncertainty)) {
+      throw new Error("Invalid uncertainty in inference response.")
+    }
+  }
+
+  if ("sample_count" in payload && payload.sample_count !== undefined) {
+    if (typeof payload.sample_count !== "number" || Number.isNaN(payload.sample_count)) {
+      throw new Error("Invalid sample_count in inference response.")
+    }
+  }
+
+  if ("semantic_dispersion" in payload && payload.semantic_dispersion !== undefined) {
+    if (typeof payload.semantic_dispersion !== "number" || Number.isNaN(payload.semantic_dispersion)) {
+      throw new Error("Invalid semantic_dispersion in inference response.")
+    }
+  }
+
+  if ("cluster_count" in payload && payload.cluster_count !== undefined) {
+    if (typeof payload.cluster_count !== "number" || Number.isNaN(payload.cluster_count)) {
+      throw new Error("Invalid cluster_count in inference response.")
+    }
+  }
+
+  if ("cluster_entropy" in payload && payload.cluster_entropy !== undefined) {
+    if (typeof payload.cluster_entropy !== "number" || Number.isNaN(payload.cluster_entropy)) {
+      throw new Error("Invalid cluster_entropy in inference response.")
+    }
+  }
+
+  if ("dominant_cluster_ratio" in payload && payload.dominant_cluster_ratio !== undefined) {
+    if (typeof payload.dominant_cluster_ratio !== "number" || Number.isNaN(payload.dominant_cluster_ratio)) {
+      throw new Error("Invalid dominant_cluster_ratio in inference response.")
+    }
+  }
+
+  if ("self_consistency" in payload && payload.self_consistency !== undefined) {
+    if (typeof payload.self_consistency !== "number" || Number.isNaN(payload.self_consistency)) {
+      throw new Error("Invalid self_consistency in inference response.")
+    }
   }
 
   if ("core_comparison" in payload && payload.core_comparison !== undefined) {
@@ -187,6 +496,533 @@ function parseExperimentDataset(payload: unknown): ExperimentItem[] {
   throw new Error("Dataset must be an array or object with dataset/prompts array.")
 }
 
+const CHART_WIDTH = 1100
+const CHART_HEIGHT = 650
+const CHART_MARGIN = { top: 72, right: 42, bottom: 78, left: 86 }
+const TEMPERATURE_SWEEP = [0.1, 0.3, 0.5, 0.7, 0.9] as const
+
+function toCsvCell(value: unknown): string {
+  const text = value === null || value === undefined ? "" : String(value)
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`
+  }
+  return text
+}
+
+function buildCsv(rows: ExperimentResult[]): string {
+  if (rows.length === 0) return ""
+  const headers = [
+    "prompt",
+    "category",
+    "difficulty_label",
+    "temperature",
+    "instability",
+    "entropy",
+    "confidence",
+    "escalate",
+    "sample_count",
+    "semantic_dispersion",
+    "cluster_count",
+    "cluster_entropy",
+    "dominant_cluster_ratio",
+    "self_consistency",
+    "temperature_sensitivity",
+    "latency_ms",
+    "input_tokens",
+    "output_tokens",
+  ]
+  const headerLine = headers.join(",")
+  const lines = rows.map((row) =>
+    [
+      toCsvCell(row.prompt),
+      toCsvCell(row.category),
+      toCsvCell(row.difficulty_label),
+      toCsvCell(row.temperature),
+      toCsvCell(row.instability),
+      toCsvCell(row.entropy),
+      toCsvCell(row.confidence),
+      toCsvCell(row.escalate),
+      toCsvCell(row.sample_count),
+      toCsvCell(row.semantic_dispersion),
+      toCsvCell(row.cluster_count),
+      toCsvCell(row.cluster_entropy),
+      toCsvCell(row.dominant_cluster_ratio),
+      toCsvCell(row.self_consistency),
+      toCsvCell(row.temperature_sensitivity),
+      toCsvCell(row.latency_ms),
+      toCsvCell(row.input_tokens),
+      toCsvCell(row.output_tokens),
+    ].join(","),
+  )
+  return [headerLine, ...lines].join("\n")
+}
+
+function mean(values: number[]): number {
+  if (values.length === 0) return 0
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadText(filename: string, text: string, contentType: string) {
+  downloadBlob(filename, new Blob([text], { type: contentType }))
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Failed to render chart image."))
+        return
+      }
+      resolve(blob)
+    }, "image/png")
+  })
+}
+
+function makeChartSurface(title: string) {
+  const canvas = document.createElement("canvas")
+  canvas.width = CHART_WIDTH
+  canvas.height = CHART_HEIGHT
+  const context = canvas.getContext("2d")
+  if (!context) {
+    throw new Error("Could not initialize chart canvas.")
+  }
+
+  context.fillStyle = "#080e10"
+  context.fillRect(0, 0, CHART_WIDTH, CHART_HEIGHT)
+
+  context.fillStyle = "#0dccf2"
+  context.font = "600 26px monospace"
+  context.fillText(title, CHART_MARGIN.left, 42)
+
+  context.strokeStyle = "#0dccf2"
+  context.lineWidth = 1
+  context.strokeRect(0.5, 0.5, CHART_WIDTH - 1, CHART_HEIGHT - 1)
+
+  const plot = {
+    left: CHART_MARGIN.left,
+    right: CHART_WIDTH - CHART_MARGIN.right,
+    top: CHART_MARGIN.top,
+    bottom: CHART_HEIGHT - CHART_MARGIN.bottom,
+  }
+
+  context.strokeStyle = "rgba(13, 204, 242, 0.45)"
+  context.lineWidth = 1.5
+  context.beginPath()
+  context.moveTo(plot.left, plot.bottom)
+  context.lineTo(plot.right, plot.bottom)
+  context.moveTo(plot.left, plot.top)
+  context.lineTo(plot.left, plot.bottom)
+  context.stroke()
+
+  return { canvas, context, plot }
+}
+
+async function exportCategoryBarChartPng(
+  data: Array<{ label: string; value: number }>,
+  filename: string,
+  title: string,
+  yAxisLabel: string
+) {
+  if (data.length === 0) return
+
+  const { canvas, context, plot } = makeChartSurface(title)
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+
+  const maxValue = Math.max(1.0, ...data.map(d => d.value))
+  const barGap = 16
+  const barWidth = (plotWidth - barGap * (data.length - 1)) / Math.max(data.length, 1)
+
+  context.fillStyle = "#94a3b8"
+  context.font = "13px monospace"
+  context.fillText(yAxisLabel, 14, plot.top + 10)
+
+  data.forEach((item, index) => {
+    const height = (clamp01(item.value) / maxValue) * (plotHeight - 60)
+    const x = plot.left + index * (barWidth + barGap)
+    const y = plot.bottom - height
+
+    // Bar
+    context.fillStyle = "rgba(13, 204, 242, 0.85)"
+    context.fillRect(x, y, barWidth, height)
+
+    // Value on top
+    context.fillStyle = "#f8fafc"
+    context.font = "12px monospace"
+    context.fillText(item.value.toFixed(3), x + 2, y - 8)
+
+    // Category label rotated
+    context.save()
+    context.translate(x + barWidth / 2 + 4, plot.bottom + 16)
+    context.rotate(Math.PI / 4)
+    context.fillStyle = "#94a3b8"
+    context.font = "11px monospace"
+    context.fillText(item.label.substring(0, 15), 0, 0)
+    context.restore()
+  })
+
+  context.fillStyle = "#94a3b8"
+  context.fillText("0.0", plot.left - 28, plot.bottom + 4)
+  context.fillText("1.0", plot.left - 28, plot.top + 8)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportHistogramPng(
+  values: number[],
+  filename: string,
+  title: string,
+  xAxisLabel: string,
+  options: { bins?: number; min?: number; max?: number } = {},
+) {
+  const bins = options.bins ?? 10
+  const optsMin = options.min ?? Math.min(...values)
+  const optsMax = options.max ?? Math.max(...values)
+  const minValue = Number.isFinite(optsMin) ? optsMin : Math.min(...values)
+  const rawMax = Number.isFinite(optsMax) ? optsMax : Math.max(...values)
+  const maxValue = rawMax <= minValue ? minValue + 1 : rawMax
+  const binSize = (maxValue - minValue) / bins
+  const counts = new Array(bins).fill(0)
+
+  for (const value of values) {
+    const clamped = Math.min(Math.max(value, minValue), maxValue)
+    const index = Math.min(Math.floor((clamped - minValue) / binSize), bins - 1)
+    counts[index] += 1
+  }
+
+  const { canvas, context, plot } = makeChartSurface(title)
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+  const maxCount = Math.max(...counts, 1)
+  const barGap = 8
+  const barWidth = (plotWidth - barGap * (bins - 1)) / bins
+
+  counts.forEach((count, index) => {
+    const barHeight = (count / maxCount) * (plotHeight - 18)
+    const x = plot.left + index * (barWidth + barGap)
+    const y = plot.bottom - barHeight
+    context.fillStyle = count === 0 ? "rgba(13, 204, 242, 0.2)" : "rgba(13, 204, 242, 0.8)"
+    context.fillRect(x, y, barWidth, barHeight)
+  })
+
+  context.fillStyle = "#94a3b8"
+  context.font = "13px monospace"
+  context.fillText("Count", 18, plot.top + 10)
+  context.fillText(xAxisLabel, (plot.left + plot.right) / 2 - 46, CHART_HEIGHT - 24)
+  context.fillText(minValue.toFixed(2), plot.left - 8, CHART_HEIGHT - 46)
+  context.fillText(maxValue.toFixed(2), plot.right - 28, CHART_HEIGHT - 46)
+  context.fillText(String(maxCount), plot.left - 34, plot.top + 8)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportScatterPng(
+  points: Array<{ x: number; y: number }>,
+  filename: string,
+  title: string,
+) {
+  const { canvas, context, plot } = makeChartSurface(title)
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+
+  context.fillStyle = "#94a3b8"
+  context.font = "13px monospace"
+  context.fillText("Instability", 14, plot.top + 10)
+  context.fillText("Confidence", (plot.left + plot.right) / 2 - 44, CHART_HEIGHT - 24)
+
+  for (const point of points) {
+    const x = plot.left + clamp01(point.x) * plotWidth
+    const y = plot.bottom - clamp01(point.y) * plotHeight
+    context.fillStyle = "rgba(34, 211, 238, 0.85)"
+    context.beginPath()
+    context.arc(x, y, 5, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.fillStyle = "#94a3b8"
+  context.fillText("0.0", plot.left - 8, CHART_HEIGHT - 46)
+  context.fillText("1.0", plot.right - 22, CHART_HEIGHT - 46)
+  context.fillText("1.0", plot.left - 30, plot.top + 8)
+  context.fillText("0.0", plot.left - 30, plot.bottom + 4)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportTemperatureCurvePng(
+  points: TemperatureAggregatePoint[],
+  filename: string,
+  title: string,
+  yAxisLabel: string,
+) {
+  if (points.length === 0) return
+
+  const { canvas, context, plot } = makeChartSurface(title)
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+  const minTemp = Math.min(...points.map((point) => point.temperature))
+  const rawMaxTemp = Math.max(...points.map((point) => point.temperature))
+  const maxTemp = rawMaxTemp <= minTemp ? minTemp + 1 : rawMaxTemp
+
+  context.fillStyle = "#94a3b8"
+  context.font = "13px monospace"
+  context.fillText(yAxisLabel, 14, plot.top + 10)
+  context.fillText("Temperature", (plot.left + plot.right) / 2 - 42, CHART_HEIGHT - 24)
+
+  const toX = (temperature: number) =>
+    plot.left + ((temperature - minTemp) / (maxTemp - minTemp)) * plotWidth
+  const toY = (value: number) => plot.bottom - clamp01(value) * plotHeight
+
+  context.strokeStyle = "rgba(13, 204, 242, 0.95)"
+  context.lineWidth = 2
+  context.beginPath()
+  points.forEach((point, index) => {
+    const x = toX(point.temperature)
+    const y = toY(point.value)
+    if (index === 0) {
+      context.moveTo(x, y)
+    } else {
+      context.lineTo(x, y)
+    }
+  })
+  context.stroke()
+
+  points.forEach((point) => {
+    const x = toX(point.temperature)
+    const y = toY(point.value)
+    context.fillStyle = "#22d3ee"
+    context.beginPath()
+    context.arc(x, y, 5, 0, Math.PI * 2)
+    context.fill()
+
+    context.fillStyle = "#94a3b8"
+    context.font = "12px monospace"
+    context.fillText(point.temperature.toFixed(1), x - 9, plot.bottom + 20)
+    context.fillText(point.value.toFixed(2), x - 11, y - 10)
+  })
+
+  context.fillStyle = "#94a3b8"
+  context.fillText("0.0", plot.left - 8, CHART_HEIGHT - 46)
+  context.fillText("1.0", plot.right - 22, CHART_HEIGHT - 46)
+  context.fillText("1.0", plot.left - 30, plot.top + 8)
+  context.fillText("0.0", plot.left - 30, plot.bottom + 4)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportEscalationRatePng(
+  total: number,
+  escalated: number,
+  filename: string,
+) {
+  const { canvas, context, plot } = makeChartSurface("Escalation Rate")
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+  const safe = Math.max(total - escalated, 0)
+  const bars = [
+    { label: "Escalated", value: escalated, color: "#f43f5e" },
+    { label: "Safe", value: safe, color: "#10b981" },
+  ]
+
+  const maxCount = Math.max(...bars.map((bar) => bar.value), 1)
+  const barWidth = (plotWidth - 120) / bars.length
+
+  bars.forEach((bar, index) => {
+    const x = plot.left + 60 + index * (barWidth + 40)
+    const height = (bar.value / maxCount) * (plotHeight - 30)
+    const y = plot.bottom - height
+    context.fillStyle = bar.color
+    context.fillRect(x, y, barWidth, height)
+    context.fillStyle = "#94a3b8"
+    context.font = "13px monospace"
+    context.fillText(bar.label, x + 4, plot.bottom + 24)
+    context.fillText(String(bar.value), x + barWidth / 2 - 10, y - 8)
+  })
+
+  const rate = total > 0 ? (escalated / total) * 100 : 0
+  context.fillStyle = "#94a3b8"
+  context.font = "14px monospace"
+  context.fillText(`Escalation rate: ${rate.toFixed(1)}%`, plot.left, 52)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportDifficultyBandsPng(
+  counts: Record<DifficultyLabel, number>,
+  filename: string,
+) {
+  const { canvas, context, plot } = makeChartSurface("Prompt Difficulty Distribution")
+  const plotWidth = plot.right - plot.left
+  const plotHeight = plot.bottom - plot.top
+  const bars: Array<{ label: DifficultyLabel; value: number; color: string }> = [
+    { label: "easy", value: counts.easy, color: "#10b981" },
+    { label: "moderate", value: counts.moderate, color: "#f59e0b" },
+    { label: "hard", value: counts.hard, color: "#fb923c" },
+    { label: "adversarial", value: counts.adversarial, color: "#f43f5e" },
+  ]
+
+  const maxCount = Math.max(...bars.map((bar) => bar.value), 1)
+  const barGap = 30
+  const barWidth = (plotWidth - barGap * (bars.length - 1)) / bars.length
+
+  bars.forEach((bar, index) => {
+    const height = (bar.value / maxCount) * (plotHeight - 30)
+    const x = plot.left + index * (barWidth + barGap)
+    const y = plot.bottom - height
+    context.fillStyle = bar.color
+    context.fillRect(x, y, barWidth, height)
+    context.fillStyle = "#94a3b8"
+    context.font = "13px monospace"
+    context.fillText(bar.label, x + 3, plot.bottom + 24)
+    context.fillText(String(bar.value), x + barWidth / 2 - 10, y - 8)
+  })
+
+  context.fillStyle = "#94a3b8"
+  context.font = "13px monospace"
+  context.fillText("Prompt count", 18, plot.top + 10)
+
+  downloadBlob(filename, await canvasToBlob(canvas))
+}
+
+async function exportExperimentReportFiles(rows: ExperimentResult[]) {
+  if (rows.length === 0) return
+
+  const rowsWithSensitivity = attachTemperatureSensitivity(rows)
+  const confidenceValues = rows.map((row) => row.confidence)
+  const instabilityValues = rows.map((row) => row.instability)
+  const entropyValues = rows.map((row) => row.entropy)
+  const uncertaintyValues = rows.map((row) => row.uncertainty)
+  const difficultyValues = rows.map((row) => row.difficulty)
+  const latencyValues = rows.map((row) => row.latency_ms)
+  const tokensOut = rows.map((row) => row.output_tokens)
+  const escalated = rows.filter((row) => row.escalate).length
+  const promptTemperatureStats = buildPromptTemperatureStats(rowsWithSensitivity)
+  const temperatureSensitivityValues = [...promptTemperatureStats.values()].map((value) => value.sensitivity)
+  const meanTemperatureSensitivity = mean(temperatureSensitivityValues)
+  const difficultyCounts = rows.reduce<Record<DifficultyLabel, number>>(
+    (acc, row) => {
+      acc[row.difficulty_label] += 1
+      return acc
+    },
+    { easy: 0, moderate: 0, hard: 0, adversarial: 0 },
+  )
+  const instabilityCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.instability)
+  const entropyCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.entropy)
+  const confidenceCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.confidence)
+  const categoryAggregates = aggregateByCategory(rowsWithSensitivity)
+
+  downloadText("experiment_results.csv", buildCsv(rowsWithSensitivity), "text/csv;charset=utf-8")
+
+  await exportHistogramPng(instabilityValues, "instability_histogram.png", "Instability Distribution", "Instability", {
+    bins: 10,
+    min: 0,
+    max: 1,
+  })
+  await exportHistogramPng(uncertaintyValues, "uncertainty_histogram.png", "Uncertainty Distribution", "Uncertainty", {
+    bins: 10,
+    min: 0,
+    max: 1,
+  })
+  await exportHistogramPng(difficultyValues, "difficulty_histogram.png", "Difficulty Score Distribution", "Difficulty", {
+    bins: 10,
+    min: 0,
+    max: 1,
+  })
+  await exportScatterPng(
+    rows.map((row) => ({ x: row.confidence, y: row.instability })),
+    "confidence_vs_instability.png",
+    "Confidence vs Instability",
+  )
+  await exportEscalationRatePng(rows.length, escalated, "escalation_rate.png")
+  await exportDifficultyBandsPng(difficultyCounts, "difficulty_bands.png")
+  await exportHistogramPng(latencyValues, "latency_distribution.png", "Latency Distribution", "Latency (ms)", {
+    bins: 12,
+    min: 0,
+  })
+  await exportTemperatureCurvePng(
+    instabilityCurve,
+    "temperature_stability_curve.png",
+    "Temperature vs Instability",
+    "Instability",
+  )
+  await exportTemperatureCurvePng(
+    entropyCurve,
+    "temperature_vs_entropy.png",
+    "Temperature vs Entropy",
+    "Entropy",
+  )
+  await exportTemperatureCurvePng(
+    confidenceCurve,
+    "temperature_vs_confidence.png",
+    "Temperature vs Confidence",
+    "Confidence",
+  )
+
+  await exportCategoryBarChartPng(
+    categoryAggregates.map(c => ({ label: c.category, value: c.instability })),
+    "instability_by_category.png",
+    "Instability by category",
+    "Instability"
+  )
+  await exportCategoryBarChartPng(
+    categoryAggregates.map(c => ({ label: c.category, value: c.difficulty })),
+    "difficulty_by_category.png",
+    "Difficulty by category",
+    "Difficulty"
+  )
+  await exportCategoryBarChartPng(
+    categoryAggregates.map(c => ({ label: c.category, value: c.confidence })),
+    "confidence_by_category.png",
+    "Confidence by category",
+    "Confidence"
+  )
+
+  const summary = [
+    "Experiment Summary",
+    "------------------",
+    `Prompts tested: ${rows.length}`,
+    `Mean confidence: ${mean(confidenceValues).toFixed(3)}`,
+    `Mean instability: ${mean(instabilityValues).toFixed(3)}`,
+    `Mean entropy: ${mean(entropyValues).toFixed(3)}`,
+    `Mean uncertainty: ${mean(uncertaintyValues).toFixed(3)}`,
+    `Mean difficulty: ${mean(difficultyValues).toFixed(3)}`,
+    `Mean temperature sensitivity: ${meanTemperatureSensitivity.toFixed(3)}`,
+    `Escalation rate: ${((escalated / rows.length) * 100).toFixed(1)}%`,
+    `Difficulty bands: easy=${difficultyCounts.easy}, moderate=${difficultyCounts.moderate}, hard=${difficultyCounts.hard}, adversarial=${difficultyCounts.adversarial}`,
+    `Temperature sweep: ${instabilityCurve.map((point) => point.temperature.toFixed(1)).join(", ")}`,
+    `Category counts: ${categoryAggregates.map(c => `${c.category}(${c.count})`).join(", ")}`,
+    `Avg latency: ${mean(latencyValues).toFixed(2)} ms`,
+    `Avg tokens (output): ${mean(tokensOut).toFixed(2)}`,
+  ].join("\n")
+
+  downloadText("experiment_summary.txt", summary, "text/plain;charset=utf-8")
+
+  const tracesExport = rowsWithSensitivity.map(row => ({
+    prompt: row.prompt,
+    temperature: row.temperature,
+    category: row.category,
+    samples: row.trace?.monte_carlo_samples ?? [],
+    metrics: {
+      confidence: row.confidence,
+      instability: row.instability,
+      entropy: row.entropy,
+      uncertainty: row.uncertainty,
+      self_consistency: row.self_consistency,
+      cluster_count: row.cluster_count,
+    }
+  }))
+
+  downloadText("experiment_traces.json", JSON.stringify(tracesExport, null, 2), "application/json;charset=utf-8")
+}
+
 function Panel({
   title,
   subtitle,
@@ -244,9 +1080,10 @@ export default function Home() {
     temperature: 0.7,
     top_p: 0.9,
     max_new_tokens: 512,
+    monte_carlo_samples: 5,
   })
 
-  const [systemStatus, setSystemStatus] = useState<"Connected" | "Disconnected">("Disconnected")
+  const [modelStatus, setModelStatus] = useState<ModelStatus>("offline")
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -275,23 +1112,119 @@ export default function Home() {
   const experimentSummary = useMemo(() => {
     if (experimentResults.length === 0) return null
 
+    const rowsWithSensitivity = attachTemperatureSensitivity(experimentResults)
     const total = experimentResults.length
     const meanConfidence =
       experimentResults.reduce((sum, item) => sum + item.confidence, 0) / total
     const meanInstability =
       experimentResults.reduce((sum, item) => sum + item.instability, 0) / total
+    const meanEntropy =
+      experimentResults.reduce((sum, item) => sum + item.entropy, 0) / total
+    const meanUncertainty =
+      experimentResults.reduce((sum, item) => sum + item.uncertainty, 0) / total
+    const meanDifficulty =
+      experimentResults.reduce((sum, item) => sum + item.difficulty, 0) / total
     const escalationRate = experimentResults.filter((item) => item.escalate).length / total
+    const avgLatency =
+      experimentResults.reduce((sum, item) => sum + item.latency_ms, 0) / total
+    const avgOutputTokens =
+      experimentResults.reduce((sum, item) => sum + item.output_tokens, 0) / total
+    const promptTemperatureStats = buildPromptTemperatureStats(rowsWithSensitivity)
+    const temperatureSensitivityValues = [...promptTemperatureStats.values()].map((value) => value.sensitivity)
+    const meanTemperatureSensitivity = mean(temperatureSensitivityValues)
+    const difficultyCounts = experimentResults.reduce<Record<DifficultyLabel, number>>(
+      (acc, item) => {
+        acc[item.difficulty_label] += 1
+        return acc
+      },
+      { easy: 0, moderate: 0, hard: 0, adversarial: 0 },
+    )
+    const instabilityCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.instability)
+    const entropyCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.entropy)
+    const confidenceCurve = aggregateByTemperature(rowsWithSensitivity, (row) => row.confidence)
+    const categoryAggregates = aggregateByCategory(rowsWithSensitivity)
 
-    return { total, meanConfidence, meanInstability, escalationRate }
+    return {
+      total,
+      meanConfidence,
+      meanInstability,
+      meanEntropy,
+      meanUncertainty,
+      meanDifficulty,
+      meanTemperatureSensitivity,
+      difficultyCounts,
+      escalationRate,
+      avgLatency,
+      avgOutputTokens,
+      instabilityCurve,
+      entropyCurve,
+      confidenceCurve,
+      categoryAggregates,
+    }
+  }, [experimentResults])
+
+  const hardestPrompts = useMemo(() => {
+    if (experimentResults.length === 0) return []
+    const grouped = new Map<string, ExperimentResult>()
+    for (const row of experimentResults) {
+      const key = makePromptKey(row.prompt, row.category)
+      const existing = grouped.get(key)
+      if (!existing || row.difficulty > existing.difficulty) {
+        grouped.set(key, row)
+      }
+    }
+    return [...grouped.values()]
+      .sort((a, b) => b.difficulty - a.difficulty)
+      .slice(0, 10)
+  }, [experimentResults])
+
+  const hardestPromptsByCategory = useMemo(() => {
+    if (experimentResults.length === 0) return []
+    const categoryBests = new Map<string, ExperimentResult>()
+
+    for (const row of experimentResults) {
+      if (row.category === "uncategorized") continue;
+
+      const existing = categoryBests.get(row.category)
+      if (!existing || row.difficulty > existing.difficulty) {
+        categoryBests.set(row.category, row)
+      }
+    }
+
+    return [...categoryBests.values()]
+      .sort((a, b) => b.difficulty - a.difficulty)
+  }, [experimentResults])
+
+  const mostSensitivePrompts = useMemo(() => {
+    if (experimentResults.length === 0) return []
+    return [...buildPromptTemperatureStats(attachTemperatureSensitivity(experimentResults)).values()]
+      .sort((a, b) => b.sensitivity - a.sensitivity)
+      .slice(0, 10)
   }, [experimentResults])
 
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const response = await fetch("/api/health")
-        setSystemStatus(response.ok ? "Connected" : "Disconnected")
+        const response = await fetch("/api/health", { cache: "no-store" })
+        if (!response.ok) {
+          setModelStatus("offline")
+          return
+        }
+
+        const data = (await response.json().catch(() => null)) as unknown
+        if (isRecord(data) && data.engine_ready === true) {
+          setModelStatus("ready")
+          return
+        }
+
+        if (isRecord(data) && data.engine_ready === false) {
+          setModelStatus("loading")
+          return
+        }
+
+        setModelStatus("offline")
       } catch {
-        setSystemStatus("Disconnected")
+        setModelStatus("offline")
       }
     }
 
@@ -313,20 +1246,47 @@ export default function Home() {
     return () => clearInterval(id)
   }, [])
 
-  const requestInference = async (promptText: string): Promise<InferenceApiResponse> => {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: promptText,
-        mode: config.mode,
-        temperature: config.temperature,
-        top_p: config.top_p,
-        max_new_tokens: config.max_new_tokens,
-      }),
-    })
+  const requestInference = async (
+    promptText: string,
+    overrides?: { temperature?: number; monte_carlo_samples?: number },
+  ): Promise<InferenceApiResponse> => {
+    const baseBody = {
+      prompt: promptText,
+      mode: config.mode,
+      temperature: overrides?.temperature ?? config.temperature,
+      top_p: config.top_p,
+      max_new_tokens: config.max_new_tokens,
+    }
 
-    const payload = await response.json().catch(() => null)
+    const sendRequest = async (includeMonteCarloSamples: boolean) => {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          includeMonteCarloSamples
+            ? {
+              ...baseBody,
+              monte_carlo_samples: overrides?.monte_carlo_samples ?? config.monte_carlo_samples,
+            }
+            : baseBody,
+        ),
+      })
+      const payload = await response.json().catch(() => null)
+      return { response, payload }
+    }
+
+    let { response, payload } = await sendRequest(true)
+
+    if (
+      !response.ok &&
+      response.status === 400 &&
+      isRecord(payload) &&
+      payload.error === "Unexpected fields in request."
+    ) {
+      const retry = await sendRequest(false)
+      response = retry.response
+      payload = retry.payload
+    }
 
     if (!response.ok) {
       const apiError =
@@ -340,6 +1300,15 @@ export default function Home() {
   }
 
   const runPrompt = async () => {
+    if (modelStatus !== "ready") {
+      setErrorMessage(
+        modelStatus === "loading"
+          ? "Model is still loading. Try again shortly."
+          : "Model is offline.",
+      )
+      return
+    }
+
     if (!prompt.trim()) {
       setErrorMessage("Prompt cannot be empty.")
       return
@@ -358,7 +1327,15 @@ export default function Home() {
         output_tokens: data.output_tokens,
         confidence: data.confidence,
         instability: data.instability,
+        entropy: typeof data.entropy === "number" ? data.entropy : undefined,
+        uncertainty: typeof data.uncertainty === "number" ? data.uncertainty : undefined,
         escalate: data.escalate,
+        sample_count: typeof data.sample_count === "number" ? data.sample_count : undefined,
+        semantic_dispersion: typeof data.semantic_dispersion === "number" ? data.semantic_dispersion : undefined,
+        cluster_count: typeof data.cluster_count === "number" ? data.cluster_count : undefined,
+        cluster_entropy: typeof data.cluster_entropy === "number" ? data.cluster_entropy : undefined,
+        dominant_cluster_ratio: typeof data.dominant_cluster_ratio === "number" ? data.dominant_cluster_ratio : undefined,
+        self_consistency: typeof data.self_consistency === "number" ? data.self_consistency : undefined,
       })
       setCoreComparison(data.core_comparison ?? null)
       setTrace(data.trace ?? null)
@@ -396,6 +1373,15 @@ export default function Home() {
   }
 
   const runExperiment = async () => {
+    if (modelStatus !== "ready") {
+      setExperimentError(
+        modelStatus === "loading"
+          ? "Model is still loading. Wait for MODEL READY."
+          : "Model is offline.",
+      )
+      return
+    }
+
     if (datasetItems.length === 0) {
       setExperimentError("Load a dataset first.")
       return
@@ -404,47 +1390,110 @@ export default function Home() {
     setExperimentRunning(true)
     setExperimentError(null)
     setExperimentResults([])
-    setExperimentProgress({ done: 0, total: datasetItems.length })
+    const sweepTemperatures = [...TEMPERATURE_SWEEP]
+    const totalRuns = datasetItems.length * sweepTemperatures.length
+    setExperimentProgress({ done: 0, total: totalRuns })
 
     const rows: ExperimentResult[] = []
     let firstError: string | null = null
+    let completedRuns = 0
 
     for (let i = 0; i < datasetItems.length; i += 1) {
       const item = datasetItems[i]
-      try {
-        const data = await requestInference(item.prompt)
-        rows.push({
-          prompt: item.prompt,
-          category: item.category ?? "uncategorized",
-          confidence: data.confidence,
-          instability: data.instability,
-          escalate: data.escalate,
-          latency_ms: data.latency_ms,
-          input_tokens: data.input_tokens,
-          output_tokens: data.output_tokens,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Experiment request failed."
-        if (!firstError) firstError = message
+      for (const temperature of sweepTemperatures) {
+        try {
+          const data = await requestInference(item.prompt, { temperature })
+          const monteCarloTrace =
+            isRecord(data.trace) && isRecord(data.trace.monte_carlo_analysis)
+              ? data.trace.monte_carlo_analysis
+              : null
+          const entropy =
+            typeof data.entropy === "number"
+              ? data.entropy
+              : monteCarloTrace && typeof monteCarloTrace.entropy === "number"
+                ? monteCarloTrace.entropy
+                : 0
+          const uncertainty =
+            typeof data.uncertainty === "number"
+              ? data.uncertainty
+              : monteCarloTrace && typeof monteCarloTrace.uncertainty === "number"
+                ? monteCarloTrace.uncertainty
+                : data.instability
+          const difficulty = computeDifficulty(data.confidence, data.instability, entropy, data.escalate)
 
-        rows.push({
-          prompt: item.prompt,
-          category: item.category ?? "uncategorized",
-          confidence: 0,
-          instability: 1,
-          escalate: true,
-          latency_ms: 0,
-          input_tokens: 0,
-          output_tokens: 0,
-        })
-      } finally {
-        setExperimentProgress({ done: i + 1, total: datasetItems.length })
-        setExperimentResults([...rows])
+          rows.push({
+            prompt: item.prompt,
+            category: item.category ?? "uncategorized",
+            response_text: data.response_text,
+            temperature,
+            confidence: data.confidence,
+            instability: data.instability,
+            entropy,
+            uncertainty,
+            escalate: data.escalate,
+            difficulty,
+            difficulty_label: difficultyLabel(difficulty),
+            temperature_sensitivity: 0,
+            latency_ms: data.latency_ms,
+            input_tokens: data.input_tokens,
+            output_tokens: data.output_tokens,
+            sample_count: typeof data.sample_count === "number" ? data.sample_count : 0,
+            semantic_dispersion: typeof data.semantic_dispersion === "number" ? data.semantic_dispersion : undefined,
+            cluster_count: typeof data.cluster_count === "number" ? data.cluster_count : undefined,
+            cluster_entropy: typeof data.cluster_entropy === "number" ? data.cluster_entropy : undefined,
+            dominant_cluster_ratio: typeof data.dominant_cluster_ratio === "number" ? data.dominant_cluster_ratio : undefined,
+            self_consistency: typeof data.self_consistency === "number" ? data.self_consistency : undefined,
+            trace: data.trace as TraceLog | undefined,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Experiment request failed."
+          if (!firstError) firstError = message
+
+          rows.push({
+            prompt: item.prompt,
+            category: item.category ?? "uncategorized",
+            response_text: "",
+            temperature,
+            confidence: 0,
+            instability: 1,
+            entropy: 1,
+            uncertainty: 1,
+            escalate: true,
+            difficulty: 1,
+            difficulty_label: "adversarial",
+            temperature_sensitivity: 0,
+            latency_ms: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            sample_count: 0,
+            semantic_dispersion: 1,
+            cluster_count: 1,
+            cluster_entropy: 1,
+            dominant_cluster_ratio: 0,
+            self_consistency: 0,
+          })
+        } finally {
+          completedRuns += 1
+          setExperimentProgress({ done: completedRuns, total: totalRuns })
+          setExperimentResults(attachTemperatureSensitivity([...rows]))
+        }
       }
     }
 
     setExperimentError(firstError)
     setExperimentRunning(false)
+
+    const finalRows = attachTemperatureSensitivity(rows)
+    setExperimentResults(finalRows)
+
+    if (finalRows.length > 0) {
+      try {
+        await exportExperimentReportFiles(finalRows)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to generate report files."
+        setExperimentError(firstError ? `${firstError} | ${message}` : message)
+      }
+    }
   }
 
   const instabilityPercent = result ? clamp01(result.instability) : 0
@@ -455,18 +1504,42 @@ export default function Home() {
       : result.confidence >= 0.5
         ? "text-amber-300"
         : "text-red-400"
-  const instabilityTone = !result
+  const localInstabilityTone = !result
     ? "text-slate-400"
-    : result.instability <= 0.25
-      ? "text-emerald-400"
-      : result.instability <= 0.4
-        ? "text-amber-300"
-        : "text-red-400"
+    : instabilityTone(result.instability)
   const escalationTone = !result
     ? "text-slate-400"
     : result.escalate
       ? "text-red-400"
       : "text-emerald-400"
+  const localEntropyTone = !result || typeof result.entropy !== "number"
+    ? "text-slate-400"
+    : entropyTone(result.entropy)
+  const uncertaintyTone = !result || typeof result.uncertainty !== "number"
+    ? "text-slate-400"
+    : result.uncertainty <= 0.25
+      ? "text-emerald-400"
+      : result.uncertainty <= 0.4
+        ? "text-amber-300"
+        : "text-red-400"
+  const modelStatusText =
+    modelStatus === "ready"
+      ? "MODEL READY"
+      : modelStatus === "loading"
+        ? "MODEL LOADING"
+        : "MODEL OFFLINE"
+  const modelStatusTone =
+    modelStatus === "ready"
+      ? "text-emerald-400"
+      : modelStatus === "loading"
+        ? "text-amber-300"
+        : "text-red-400"
+  const modelStatusDot =
+    modelStatus === "ready"
+      ? "bg-emerald-500"
+      : modelStatus === "loading"
+        ? "bg-amber-400"
+        : "bg-red-500"
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#080e10] text-slate-100">
@@ -483,13 +1556,8 @@ export default function Home() {
 
           <div className="flex items-center gap-4 text-xs font-mono">
             <div className="flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${systemStatus === "Connected" ? "bg-emerald-500" : "bg-red-500"
-                  }`}
-              />
-              <span className={systemStatus === "Connected" ? "text-emerald-400" : "text-red-400"}>
-                {systemStatus}
-              </span>
+              <span className={`h-2 w-2 rounded-full ${modelStatusDot}`} />
+              <span className={modelStatusTone}>{modelStatusText}</span>
             </div>
             <div className="text-slate-500">{clockText}</div>
           </div>
@@ -506,7 +1574,7 @@ export default function Home() {
           <RibbonMetric
             label="Instability"
             value={result ? result.instability.toFixed(3) : "--"}
-            tone={instabilityTone}
+            tone={localInstabilityTone}
           />
           <RibbonMetric
             label="Latency"
@@ -575,6 +1643,13 @@ export default function Home() {
                   min: 32,
                   max: 8192,
                   step: 32,
+                }, {
+                  label: "MC Samples",
+                  key: "monte_carlo_samples",
+                  value: config.monte_carlo_samples,
+                  min: 3,
+                  max: 7,
+                  step: 1,
                 }].map((control) => (
                   <div key={control.key} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
@@ -599,11 +1674,17 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={runPrompt}
-                    disabled={loading}
+                    disabled={loading || modelStatus !== "ready"}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-[#0dccf2]/90 px-4 py-2 text-sm font-semibold text-[#081014] transition hover:bg-[#33d5f3] disabled:opacity-60"
                   >
                     <Play className="h-4 w-4" />
-                    {loading ? "Running..." : "Run Prompt"}
+                    {loading
+                      ? "Running..."
+                      : modelStatus === "loading"
+                        ? "Model Loading"
+                        : modelStatus === "offline"
+                          ? "Model Offline"
+                          : "Run Prompt"}
                   </button>
                   <button
                     type="button"
@@ -689,13 +1770,44 @@ export default function Home() {
               <Panel title="Reliability" subtitle="Confidence and instability view">
                 {result ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6">
                       <MetricCard label="Confidence" value={result.confidence.toFixed(3)} tone="text-emerald-400" />
                       <MetricCard label="Instability" value={result.instability.toFixed(3)} tone="text-amber-300" />
+                      <MetricCard
+                        label="Entropy"
+                        value={typeof result.entropy === "number" ? result.entropy.toFixed(3) : "n/a"}
+                        tone={localEntropyTone}
+                      />
+                      <MetricCard
+                        label="Self-consistency"
+                        value={typeof result.self_consistency === "number" ? result.self_consistency.toFixed(3) : "n/a"}
+                        tone={
+                          typeof result.self_consistency === "number"
+                            ? result.self_consistency >= 0.65
+                              ? "text-emerald-400"
+                              : result.self_consistency >= 0.45
+                                ? "text-amber-300"
+                                : "text-red-400"
+                            : "text-slate-400"
+                        }
+                      />
+                      <MetricCard
+                        label="Uncertainty Score"
+                        value={typeof result.uncertainty === "number" ? result.uncertainty.toFixed(3) : "n/a"}
+                        tone={uncertaintyTone}
+                      />
                       <MetricCard
                         label="Escalation"
                         value={result.escalate ? "TRUE" : "FALSE"}
                         tone={result.escalate ? "text-red-400" : "text-emerald-400"}
+                      />
+                      <MetricCard
+                        label="Uncertainty Level"
+                        value={
+                          isRecord(monteCarlo) && typeof monteCarlo.uncertainty_level === "string"
+                            ? monteCarlo.uncertainty_level.toUpperCase()
+                            : "n/a"
+                        }
                       />
                     </div>
 
@@ -734,12 +1846,58 @@ export default function Home() {
                 )}
               </Panel>
 
+              {/* Semantic Clusters Panel (Live Inference) */}
+              {result?.cluster_count !== undefined && (
+                <Panel title="Semantic Clusters" subtitle="Clustered interpretation from Monte Carlo samples" className="mt-4">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <MetricCard
+                      label="Clusters Count"
+                      value={result.cluster_count.toString()}
+                      tone={result.cluster_count > 1 ? "text-amber-300" : "text-emerald-400"}
+                    />
+                    <MetricCard
+                      label="Cluster Entropy"
+                      value={result.cluster_entropy?.toFixed(3) ?? "n/a"}
+                      tone={result.cluster_entropy && result.cluster_entropy > 0.4 ? "text-amber-300" : "text-emerald-400"}
+                    />
+                    <MetricCard
+                      label="Dominant Cluster %"
+                      value={result.dominant_cluster_ratio ? `${(result.dominant_cluster_ratio * 100).toFixed(1)}%` : "n/a"}
+                      tone={result.dominant_cluster_ratio && result.dominant_cluster_ratio < 0.6 ? "text-amber-300" : "text-emerald-400"}
+                    />
+                  </div>
+                </Panel>
+              )}
               <Panel title="Telemetry" subtitle="Latency and token accounting">
                 {result ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     <MetricCard label="Latency" value={`${result.latency_ms} ms`} />
                     <MetricCard label="Input Tokens" value={result.input_tokens.toString()} />
                     <MetricCard label="Output Tokens" value={result.output_tokens.toString()} />
+                    <MetricCard
+                      label="Samples"
+                      value={
+                        isRecord(monteCarlo) && typeof monteCarlo.sample_count === "number"
+                          ? monteCarlo.sample_count.toFixed(0)
+                          : config.monte_carlo_samples.toString()
+                      }
+                    />
+                    <MetricCard
+                      label="Entropy Variance"
+                      value={
+                        isRecord(monteCarlo) && typeof monteCarlo.entropy_variance === "number"
+                          ? monteCarlo.entropy_variance.toFixed(3)
+                          : "n/a"
+                      }
+                    />
+                    <MetricCard
+                      label="Semantic Dispersion"
+                      value={
+                        isRecord(monteCarlo) && typeof monteCarlo.semantic_dispersion === "number"
+                          ? monteCarlo.semantic_dispersion.toFixed(3)
+                          : "n/a"
+                      }
+                    />
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500">Telemetry appears after running inference.</p>
@@ -780,14 +1938,48 @@ export default function Home() {
                 {traceExpanded ? (
                   trace ? (
                     <div className="mt-3 space-y-2">
-                      {Object.entries(trace).map(([key, value]) => (
-                        <div key={key} className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-2">
-                          <p className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">{key}</p>
-                          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-200">
-                            {toPretty(value)}
-                          </pre>
-                        </div>
-                      ))}
+                      {Object.entries(trace).map(([key, value]) => {
+                        if (key === "monte_carlo_samples" && Array.isArray(value)) {
+                          const groups: Record<number, string[]> = {}
+                          value.forEach((sample: any) => {
+                            const c = sample.cluster ?? 0
+                            if (!groups[c]) groups[c] = []
+                            groups[c].push(sample.text)
+                          })
+                          return (
+                            <div key={key} className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0dccf2]">
+                                Monte Carlo Reasoning Trace
+                              </p>
+                              <div className="space-y-4">
+                                {Object.entries(groups).map(([clusterId, texts]) => (
+                                  <div key={clusterId} className="space-y-2 border-l-2 border-[#0dccf2]/30 pl-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+                                      Cluster {clusterId}
+                                    </p>
+                                    <ul className="ml-4 list-disc space-y-1 text-xs text-slate-200">
+                                      {texts.map((t, idx) => (
+                                        <li key={idx} className="leading-relaxed">
+                                          {t}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div key={key} className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-2">
+                            <p className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">{key}</p>
+                            <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-200">
+                              {toPretty(value)}
+                            </pre>
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-500">Run an inference to populate trace data.</p>
@@ -812,7 +2004,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={runExperiment}
-                disabled={experimentRunning || datasetItems.length === 0}
+                disabled={experimentRunning || datasetItems.length === 0 || modelStatus !== "ready"}
                 className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-[#0dccf2]/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#081014] disabled:opacity-60"
               >
                 <FlaskConical className="h-4 w-4" />
@@ -820,27 +2012,49 @@ export default function Home() {
               </button>
 
               {experimentResults.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const blob = new Blob([JSON.stringify(experimentResults, null, 2)], { type: "application/json" })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.download = `experiment_results_${Date.now()}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60"
-                >
-                  <Download className="h-4 w-4 text-[#0dccf2]" />
-                  Export
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await exportExperimentReportFiles(experimentResults)
+                      } catch (error) {
+                        const message =
+                          error instanceof Error ? error.message : "Failed to generate report files."
+                        setExperimentError(message)
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60"
+                  >
+                    <Download className="h-4 w-4 text-[#0dccf2]" />
+                    Export Report
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const blob = new Blob([JSON.stringify(experimentResults, null, 2)], { type: "application/json" })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement("a")
+                      a.href = url
+                      a.download = `experiment_results_${Date.now()}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[#0dccf2]/30 bg-black/25 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-[#0dccf2]/60"
+                  >
+                    <Download className="h-4 w-4 text-[#0dccf2]" />
+                    Export JSON
+                  </button>
+                </>
               ) : null}
 
               <div className="text-xs text-slate-400">
                 <span className="font-semibold text-slate-200">Dataset:</span> {datasetName}
                 {datasetItems.length > 0 ? ` (${datasetItems.length} prompts)` : ""}
+                {datasetItems.length > 0
+                  ? ` | Runs: ${datasetItems.length * TEMPERATURE_SWEEP.length} (${TEMPERATURE_SWEEP.join(", ")})`
+                  : ""}
               </div>
             </div>
 
@@ -858,11 +2072,21 @@ export default function Home() {
 
             {experimentSummary ? (
               <>
-                <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+                <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4 xl:grid-cols-10">
                   <MetricCard label="Prompts" value={experimentSummary.total.toString()} />
                   <MetricCard label="Mean Confidence" value={experimentSummary.meanConfidence.toFixed(3)} />
                   <MetricCard label="Avg Instability" value={experimentSummary.meanInstability.toFixed(3)} />
+                  <MetricCard label="Mean Entropy" value={experimentSummary.meanEntropy.toFixed(3)} />
+                  <MetricCard label="Mean Uncertainty" value={experimentSummary.meanUncertainty.toFixed(3)} />
+                  <MetricCard label="Mean Difficulty" value={experimentSummary.meanDifficulty.toFixed(3)} />
+                  <MetricCard
+                    label="Temp Sensitivity"
+                    value={experimentSummary.meanTemperatureSensitivity.toFixed(3)}
+                    tone={sensitivityTone(experimentSummary.meanTemperatureSensitivity)}
+                  />
                   <MetricCard label="Escalation Rate" value={`${(experimentSummary.escalationRate * 100).toFixed(1)}%`} />
+                  <MetricCard label="Avg Latency" value={`${experimentSummary.avgLatency.toFixed(1)} ms`} />
+                  <MetricCard label="Avg Tokens Out" value={experimentSummary.avgOutputTokens.toFixed(1)} />
                 </div>
 
                 <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
@@ -878,6 +2102,163 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+
+                <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                    Temperature Sensitivity Curves (mean by temperature)
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[640px] border-collapse text-xs">
+                      <thead>
+                        <tr className="text-left uppercase tracking-[0.1em] text-slate-400">
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Temperature</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Instability</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Entropy</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Confidence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {experimentSummary.instabilityCurve.map((point, index) => (
+                          <tr key={`${point.temperature}-${index}`} className="border-b border-[#0dccf2]/10 text-slate-200">
+                            <td className="px-2 py-1 font-mono">{point.temperature.toFixed(1)}</td>
+                            <td className="px-2 py-1 font-mono">
+                              {point.value.toFixed(3)}
+                            </td>
+                            <td className="px-2 py-1 font-mono">
+                              {experimentSummary.entropyCurve[index]?.value.toFixed(3) ?? "--"}
+                            </td>
+                            <td className="px-2 py-1 font-mono">
+                              {experimentSummary.confidenceCurve[index]?.value.toFixed(3) ?? "--"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mb-4 rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                    Category Stability Panel
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[640px] border-collapse text-xs">
+                      <thead>
+                        <tr className="text-left uppercase tracking-[0.1em] text-slate-400">
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Category</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Count</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Instability</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Difficulty</th>
+                          <th className="border-b border-[#0dccf2]/10 px-2 py-1">Confidence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {experimentSummary.categoryAggregates.map((agg, index) => (
+                          <tr key={`${agg.category}-${index}`} className="border-b border-[#0dccf2]/10 text-slate-200">
+                            <td className="px-2 py-1 font-mono text-[#0dccf2]">{agg.category}</td>
+                            <td className="px-2 py-1 font-mono">{agg.count}</td>
+                            <td className={`px-2 py-1 font-mono ${instabilityTone(agg.instability)}`}>
+                              {agg.instability.toFixed(3)}
+                            </td>
+                            <td className={`px-2 py-1 font-mono ${difficultyTone(difficultyLabel(agg.difficulty))}`}>
+                              {agg.difficulty.toFixed(3)}
+                            </td>
+                            <td className="px-2 py-1 font-mono">
+                              {agg.confidence.toFixed(3)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(260px,34%)_minmax(0,1fr)]">
+                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Prompt Difficulty Distribution
+                    </p>
+                    <div className="space-y-2">
+                      {(["easy", "moderate", "hard", "adversarial"] as DifficultyLabel[]).map((label) => {
+                        const count = experimentSummary.difficultyCounts[label]
+                        const ratio = experimentSummary.total > 0 ? count / experimentSummary.total : 0
+                        return (
+                          <div key={label}>
+                            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.1em]">
+                              <span className={difficultyTone(label)}>{label}</span>
+                              <span className="font-mono text-slate-300">
+                                {count} ({(ratio * 100).toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded bg-[#0dccf2]/15">
+                              <div
+                                className={`h-full ${difficultyBarTone(label)}`}
+                                style={{ width: `${(ratio * 100).toFixed(2)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-[#0dccf2]/15 bg-black/25 p-3">
+                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Hardest Prompt Per Category
+                    </p>
+                    <div className="mb-4 max-h-40 space-y-2 overflow-y-auto pr-1">
+                      {hardestPromptsByCategory.map((row, index) => (
+                        <div key={`${row.category}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="font-mono text-[11px] text-[#0dccf2] uppercase tracking-[0.08em]">{row.category}</span>
+                            <span className={`font-mono text-[11px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
+                              {row.difficulty.toFixed(3)}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 text-xs text-slate-200">{row.prompt}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Top 10 Hardest Prompts (Overall)
+                    </p>
+                    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                      {hardestPrompts.map((row, index) => (
+                        <div key={`${row.prompt}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="font-mono text-[11px] text-slate-400">#{index + 1}</span>
+                            <span className={`font-mono text-[11px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
+                              {row.difficulty_label} {row.difficulty.toFixed(3)}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 text-xs text-slate-200">{row.prompt}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="mb-2 mt-4 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Top 10 Temperature-Sensitive Prompts
+                    </p>
+                    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                      {mostSensitivePrompts.map((item, index) => (
+                        <div key={`${item.prompt}-${index}`} className="rounded border border-[#0dccf2]/10 bg-black/30 p-2">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="font-mono text-[11px] text-slate-400">#{index + 1}</span>
+                            <span className={`font-mono text-[11px] ${sensitivityTone(item.sensitivity)}`}>
+                              sens {item.sensitivity.toFixed(3)}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 text-xs text-slate-200">{item.prompt}</p>
+                          <p className="mt-1 font-mono text-[10px] text-slate-400">
+                            {item.low_temperature.toFixed(1)}:{item.low_instability.toFixed(3)} -&gt;{" "}
+                            {item.high_temperature.toFixed(1)}:{item.high_instability.toFixed(3)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </>
             ) : null}
 
@@ -887,13 +2268,20 @@ export default function Home() {
                   Upload a JSON dataset and run experiment to populate results.
                 </div>
               ) : (
-                <table className="w-full min-w-[960px] border-collapse text-xs">
+                <table className="w-full min-w-[1660px] border-collapse text-xs">
                   <thead className="sticky top-0 bg-[#101f22]">
                     <tr className="text-left uppercase tracking-[0.12em] text-slate-400">
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Prompt</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Response</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Category</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Temperature</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Confidence</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Instability</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Entropy</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Uncertainty</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Temp Sensitivity</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Difficulty</th>
+                      <th className="border-b border-[#0dccf2]/15 px-3 py-2">Difficulty Label</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Escalate</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Latency (ms)</th>
                       <th className="border-b border-[#0dccf2]/15 px-3 py-2">Tokens In</th>
@@ -906,9 +2294,26 @@ export default function Home() {
                         <td className="max-w-[340px] px-3 py-2">
                           <div className="line-clamp-2">{row.prompt}</div>
                         </td>
+                        <td className="max-w-[340px] px-3 py-2">
+                          <div className="line-clamp-2">{row.response_text || "-"}</div>
+                        </td>
                         <td className="px-3 py-2">{row.category}</td>
+                        <td className="px-3 py-2 font-mono">{row.temperature.toFixed(1)}</td>
                         <td className="px-3 py-2 font-mono">{row.confidence.toFixed(3)}</td>
                         <td className="px-3 py-2 font-mono">{row.instability.toFixed(3)}</td>
+                        <td className="px-3 py-2 font-mono">{row.entropy.toFixed(3)}</td>
+                        <td className="px-3 py-2 font-mono">{row.uncertainty.toFixed(3)}</td>
+                        <td className={`px-3 py-2 font-mono ${sensitivityTone(row.temperature_sensitivity)}`}>
+                          {row.temperature_sensitivity.toFixed(3)}
+                        </td>
+                        <td className={`px-3 py-2 font-mono ${difficultyTone(row.difficulty_label)}`}>
+                          {row.difficulty.toFixed(3)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex rounded border border-current/30 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] ${difficultyTone(row.difficulty_label)}`}>
+                            {row.difficulty_label}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 font-mono">
                           {row.escalate ? (
                             <span className="inline-flex items-center gap-1 text-red-400">
@@ -936,7 +2341,7 @@ export default function Home() {
         <div className="flex flex-wrap items-center gap-4 font-mono">
           <span className="inline-flex items-center gap-2">
             <Server className="h-3.5 w-3.5 text-[#0dccf2]" />
-            Backend: {systemStatus}
+            {modelStatusText}
           </span>
           {result ? (
             <span>

@@ -1,27 +1,26 @@
 import { NextResponse } from "next/server"
 
-import { getInferenceEndpoint } from "@/lib/inference-endpoint"
-
-function getHealthEndpoint() {
-  const endpoint = getInferenceEndpoint()
-  return endpoint.replace(/\/generate\/?$/, "/health")
-}
+import { getHealthEndpoint } from "@/lib/inference-endpoint"
 
 export async function GET() {
   try {
-    const res = await fetch(getHealthEndpoint(), {
+    const endpoint = getHealthEndpoint()
+
+    const response = await fetch(endpoint, {
       method: "GET",
-      headers: { "ngrok-skip-browser-warning": "true" },
-      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
     })
 
-    if (!res.ok) {
-      return NextResponse.json({ status: "offline" }, { status: 502 })
-    }
+    const text = await response.text()
 
-    const data = await res.json()
-    return NextResponse.json(data)
-  } catch (error) {
-    return NextResponse.json({ status: "offline", error: String(error) }, { status: 503 })
+    return new Response(text, {
+      status: response.status,
+      headers: { "Content-Type": "application/json" },
+    })
+  } catch (err) {
+    return NextResponse.json(
+      { status: "offline", detail: String(err) },
+      { status: 503 },
+    )
   }
 }
