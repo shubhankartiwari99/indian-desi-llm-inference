@@ -1312,7 +1312,7 @@ function FailureAnalysis({ failures }: { failures?: string[] }) {
 }
 
 export default function Home() {
-  const API_BASE = "http://127.0.0.1:8000"
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://michal-unboarded-erna.ngrok-free.dev"
   const [prompt, setPrompt] = useState("")
   const [config, setConfig] = useState<InferenceConfig>({
     mode: "factual",
