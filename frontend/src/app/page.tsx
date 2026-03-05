@@ -1313,6 +1313,16 @@ function FailureAnalysis({ failures }: { failures?: string[] }) {
 
 export default function Home() {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://michal-unboarded-erna.ngrok-free.dev"
+  const apiFetch = (path: string, options?: RequestInit) =>
+    fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+        ...(options?.headers || {}),
+      },
+    })
+
   const [prompt, setPrompt] = useState("")
   const [config, setConfig] = useState<InferenceConfig>({
     mode: "factual",
@@ -1470,7 +1480,7 @@ export default function Home() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/health`, { cache: "no-store" })
+        const response = await apiFetch("/api/health", { cache: "no-store" })
         if (!response.ok) {
           setModelStatus("offline")
           return
@@ -1502,9 +1512,8 @@ export default function Home() {
     if (!prompt) return
     setGridLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/evaluate/grid`, {
+      const res = await apiFetch("/api/evaluate/grid", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
           ...config
@@ -1523,7 +1532,7 @@ export default function Home() {
 
   async function fetchLeaderboard() {
     try {
-      const res = await fetch(`${API_BASE}/api/evaluate/leaderboard`)
+      const res = await apiFetch("/api/evaluate/leaderboard")
       const data = await res.json()
       setLeaderboard(data)
     } catch (e) {
@@ -1535,9 +1544,8 @@ export default function Home() {
     if (!experimentSummary) return
     setReportLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/evaluate/report`, {
+      const res = await apiFetch("/api/evaluate/report", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ summary: experimentSummary }),
       })
       const data = await res.json()
@@ -1581,9 +1589,8 @@ export default function Home() {
     }
 
     const sendRequest = async (includeMonteCarloSamples: boolean) => {
-      const response = await fetch(`${API_BASE}/api/generate`, {
+      const response = await apiFetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           includeMonteCarloSamples
             ? {
@@ -1743,9 +1750,8 @@ export default function Home() {
     setExperimentProgress({ done: 0, total: flatPrompts.length })
 
     try {
-      const resp = await fetch(`${API_BASE}/api/evaluate/benchmark`, {
+      const resp = await apiFetch("/api/evaluate/benchmark", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompts: flatPrompts,
           ...config
