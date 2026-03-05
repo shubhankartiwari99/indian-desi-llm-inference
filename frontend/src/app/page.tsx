@@ -1750,21 +1750,32 @@ export default function Home() {
     setExperimentProgress({ done: 0, total: flatPrompts.length })
 
     try {
-      const resp = await apiFetch("/api/evaluate/benchmark", {
-        method: "POST",
-        body: JSON.stringify({
-          prompts: flatPrompts,
-          ...config
-        })
-      })
+      const BATCH_SIZE = 10
+      const allResults: any[] = []
+      let lastSummary: any = null
 
-      if (!resp.ok) {
-        throw new Error(`Benchmark failed: ${resp.statusText}`)
+      for (let i = 0; i < flatPrompts.length; i += BATCH_SIZE) {
+        const batch = flatPrompts.slice(i, i + BATCH_SIZE)
+
+        const resp = await apiFetch("/api/evaluate/benchmark", {
+          method: "POST",
+          body: JSON.stringify({
+            prompts: batch,
+            ...config
+          })
+        })
+
+        if (!resp.ok) throw new Error(`Batch ${i} failed: ${resp.statusText}`)
+
+        const { summary, results } = await resp.json()
+        allResults.push(...results)
+        lastSummary = summary
+
+        // Update progress live
+        setExperimentProgress({ done: allResults.length, total: flatPrompts.length })
       }
 
-      const { summary, results } = await resp.json()
-
-      const mappedResults = results.map((data: any, idx: number) => {
+      const mappedResults = allResults.map((data: any, idx: number) => {
         const item = flatPrompts[idx]
         const entropy = typeof data.mean_entropy === "number" ? data.mean_entropy : 0
         const uncertainty = typeof data.uncertainty === "number" ? data.uncertainty : data.instability
@@ -1795,7 +1806,7 @@ export default function Home() {
 
       const finalRows = attachTemperatureSensitivity(mappedResults)
       setExperimentResults(finalRows)
-      setExperimentDistributions(summary.distributions)
+      setExperimentDistributions(lastSummary?.distributions || null)
       setExperimentProgress({ done: flatPrompts.length, total: flatPrompts.length })
 
       if (finalRows.length > 0) {
