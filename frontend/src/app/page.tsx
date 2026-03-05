@@ -1753,6 +1753,7 @@ export default function Home() {
       const BATCH_SIZE = 10
       const allResults: any[] = []
       let lastSummary: any = null
+      let currentFinalRows: any[] = []
 
       const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -1785,49 +1786,46 @@ export default function Home() {
         allResults.push(...results)
         lastSummary = summary
 
-        // Update progress live
+        const mappedResults = allResults.map((data: any, idx: number) => {
+          const item = flatPrompts[idx]
+          const entropy = typeof data.mean_entropy === "number" ? data.mean_entropy : 0
+          const uncertainty = typeof data.uncertainty === "number" ? data.uncertainty : data.instability
+          const difficulty = computeDifficulty(data.confidence, data.instability, entropy, data.escalate)
+
+          return {
+            prompt: item.prompt,
+            category: item.category ?? "uncategorized",
+            response_text: data.response_text,
+            temperature: item.temperature,
+            confidence: data.confidence,
+            instability: data.instability,
+            entropy,
+            uncertainty,
+            escalate: data.escalate,
+            difficulty,
+            difficulty_label: difficultyLabel(difficulty),
+            temperature_sensitivity: 0, // Will be computed by attachTemperatureSensitivity
+            latency_ms: data.latency_ms,
+            input_tokens: data.input_tokens,
+            output_tokens: data.output_tokens,
+            sample_count: data.sample_count || 0,
+            samples_used: data.samples_used || 0,
+            semantic_dispersion: data.semantic_dispersion,
+            cluster_count: data.cluster_count,
+          }
+        })
+
+        currentFinalRows = attachTemperatureSensitivity(mappedResults)
+        setExperimentResults(currentFinalRows)
+        setExperimentDistributions(lastSummary?.distributions || null)
         setExperimentProgress({ done: allResults.length, total: flatPrompts.length })
 
         await sleep(3000)
       }
 
-      const mappedResults = allResults.map((data: any, idx: number) => {
-        const item = flatPrompts[idx]
-        const entropy = typeof data.mean_entropy === "number" ? data.mean_entropy : 0
-        const uncertainty = typeof data.uncertainty === "number" ? data.uncertainty : data.instability
-        const difficulty = computeDifficulty(data.confidence, data.instability, entropy, data.escalate)
-
-        return {
-          prompt: item.prompt,
-          category: item.category ?? "uncategorized",
-          response_text: data.response_text,
-          temperature: item.temperature,
-          confidence: data.confidence,
-          instability: data.instability,
-          entropy,
-          uncertainty,
-          escalate: data.escalate,
-          difficulty,
-          difficulty_label: difficultyLabel(difficulty),
-          temperature_sensitivity: 0, // Will be computed by attachTemperatureSensitivity
-          latency_ms: data.latency_ms,
-          input_tokens: data.input_tokens,
-          output_tokens: data.output_tokens,
-          sample_count: data.sample_count || 0,
-          samples_used: data.samples_used || 0,
-          semantic_dispersion: data.semantic_dispersion,
-          cluster_count: data.cluster_count,
-        }
-      })
-
-      const finalRows = attachTemperatureSensitivity(mappedResults)
-      setExperimentResults(finalRows)
-      setExperimentDistributions(lastSummary?.distributions || null)
-      setExperimentProgress({ done: flatPrompts.length, total: flatPrompts.length })
-
-      if (finalRows.length > 0) {
+      if (currentFinalRows.length > 0) {
         try {
-          await exportExperimentReportFiles(finalRows)
+          await exportExperimentReportFiles(currentFinalRows)
         } catch (error) {
           console.error("Failed to export report:", error)
         }
