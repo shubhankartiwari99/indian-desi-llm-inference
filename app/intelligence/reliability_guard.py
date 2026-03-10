@@ -8,7 +8,7 @@ Empirical basis (Qwen 2.5-7B, 400-run parameter grid sweep):
   - Instability threshold 0.25 sits at the empirical inflection point between
     moderate and high stochastic instability across all category types.
 
-When a request's initial sampling run exceeds INSTABILITY_THRESHOLD, this guard
+When a request's initial entropy pass exceeds INSTABILITY_THRESHOLD, this guard
 intercepts, switches to FALLBACK params, resamples, and returns an enriched
 result with full before/after telemetry embedded in the trace.
 """
@@ -136,7 +136,7 @@ def apply_reliability_guard(
     Main entry point for the reliability guard.
 
     If the initial instability is within threshold, returns a pass-through
-    result with resampled=False. Otherwise triggers fallback sampling and
+    result with resampled=False. Otherwise triggers the fallback pass and
     returns enriched telemetry.
     """
     initial_instability = initial_analysis["instability"]
