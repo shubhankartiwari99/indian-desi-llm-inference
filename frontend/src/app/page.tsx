@@ -62,6 +62,7 @@ type InferenceResult = {
   dominant_cluster_ratio?: number
   self_consistency?: number
   failures?: string[]
+  resampled?: boolean
 }
 
 type TraceLog = {
@@ -1311,6 +1312,132 @@ function FailureAnalysis({ failures }: { failures?: string[] }) {
   )
 }
 
+type ReliabilityGuardData = {
+  triggered: boolean
+  initial_instability: number
+  threshold: number
+  final_instability?: number
+  instability_delta?: number
+  improved?: boolean
+  fallback_temperature?: number
+  fallback_top_p?: number
+  fallback_samples_used?: number
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function getReliabilityGuardData(value: unknown): ReliabilityGuardData | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  if (
+    typeof value.triggered !== "boolean" ||
+    typeof value.initial_instability !== "number" ||
+    !Number.isFinite(value.initial_instability) ||
+    typeof value.threshold !== "number" ||
+    !Number.isFinite(value.threshold)
+  ) {
+    return null
+  }
+
+  return {
+    triggered: value.triggered,
+    initial_instability: value.initial_instability,
+    threshold: value.threshold,
+    final_instability: asFiniteNumber(value.final_instability),
+    instability_delta: asFiniteNumber(value.instability_delta),
+    improved: typeof value.improved === "boolean" ? value.improved : undefined,
+    fallback_temperature: asFiniteNumber(value.fallback_temperature),
+    fallback_top_p: asFiniteNumber(value.fallback_top_p),
+    fallback_samples_used: asFiniteNumber(value.fallback_samples_used),
+  }
+}
+
+function ReliabilityGuardPanel({
+  guardData,
+  resampled,
+}: {
+  guardData: ReliabilityGuardData | null
+  resampled?: boolean
+}) {
+  const triggered = guardData?.triggered || Boolean(resampled)
+
+  if (!guardData) {
+    return (
+      <div className="h-full flex items-center justify-center text-slate-700 font-mono text-[10px] uppercase tracking-widest text-center px-4">
+        No inference run yet
+      </div>
+    )
+  }
+
+  if (!triggered) {
+    return (
+      <div className="flex flex-col gap-3 h-full justify-center">
+        <div className="py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+          <p className="text-[10px] uppercase font-black tracking-[0.4em] text-emerald-400 mb-1">Guard Status</p>
+          <p className="text-2xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]">STABLE</p>
+          <p className="text-[9px] text-slate-500 mt-1 uppercase tracking-widest">No fallback required</p>
+        </div>
+        <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+          <span className="text-[10px] uppercase text-slate-500">Initial Instability</span>
+          <span className="text-xs font-mono text-emerald-400">{guardData.initial_instability.toFixed(4)}</span>
+        </div>
+        <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+          <span className="text-[10px] uppercase text-slate-500">Threshold</span>
+          <span className="text-xs font-mono text-slate-400">{guardData.threshold.toFixed(2)}</span>
+        </div>
+      </div>
+    )
+  }
+
+  const deltaColor = guardData.improved ? "text-emerald-400" : "text-red-400"
+  const deltaSign = guardData.improved ? "▼" : "▲"
+
+  return (
+    <div className="flex flex-col gap-2 overflow-y-auto">
+      <div className="py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-center">
+        <p className="text-[10px] uppercase font-black tracking-[0.4em] text-amber-400 mb-1">Guard Status</p>
+        <p className="text-2xl font-black text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">TRIGGERED</p>
+        <p className="text-[9px] text-slate-500 mt-1 uppercase tracking-widest">
+          Fallback: T={guardData.fallback_temperature} · top_p={guardData.fallback_top_p}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col items-center p-2 bg-slate-900/60 rounded border border-slate-800">
+          <span className="text-[9px] uppercase text-slate-500 mb-1">Before</span>
+          <span className="text-sm font-mono text-red-400">{guardData.initial_instability.toFixed(4)}</span>
+        </div>
+        <div className="flex flex-col items-center p-2 bg-slate-900/60 rounded border border-slate-800">
+          <span className="text-[9px] uppercase text-slate-500 mb-1">After</span>
+          <span className="text-sm font-mono text-emerald-400">{guardData.final_instability?.toFixed(4) ?? "—"}</span>
+        </div>
+      </div>
+
+      <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+        <span className="text-[10px] uppercase text-slate-500">Delta</span>
+        <span className={`text-xs font-mono font-bold ${deltaColor}`}>
+          {deltaSign} {Math.abs(guardData.instability_delta ?? 0).toFixed(4)}
+          {guardData.improved ? " improved" : " degraded"}
+        </span>
+      </div>
+
+      <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+        <span className="text-[10px] uppercase text-slate-500">Fallback Samples</span>
+        <span className="text-xs font-mono text-slate-300">{guardData.fallback_samples_used ?? "—"}</span>
+      </div>
+
+      <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
+        <span className="text-[10px] uppercase text-slate-500">Threshold</span>
+        <span className="text-xs font-mono text-slate-400">{guardData.threshold.toFixed(2)}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://michal-unboarded-erna.ngrok-free.dev"
   const apiFetch = (path: string, options?: RequestInit) =>
@@ -1725,6 +1852,7 @@ export default function Home() {
         dominant_cluster_ratio: typeof data.dominant_cluster_ratio === "number" ? data.dominant_cluster_ratio : undefined,
         self_consistency: typeof data.self_consistency === "number" ? data.self_consistency : undefined,
         failures: Array.isArray(data.failures) ? data.failures : undefined,
+        resampled: typeof data.resampled === "boolean" ? data.resampled : undefined,
       })
       setCoreComparison(data.core_comparison ? {
         similarity: data.core_comparison.embedding_similarity,
@@ -2223,7 +2351,13 @@ export default function Home() {
                   </div>
                   <div className="flex justify-between p-2 bg-slate-900/60 rounded border border-slate-800">
                     <span className="text-[10px] uppercase text-slate-500">Entropy Var</span>
-                    <span className="text-xs font-mono text-orange-300">{isRecord(monteCarlo) && (monteCarlo as any).entropy_variance?.toFixed(3) || "n/a"}</span>
+                    <span className="text-xs font-mono text-orange-300">
+                      {(
+                        isRecord(monteCarlo) && typeof monteCarlo.entropy_variance === "number"
+                          ? monteCarlo.entropy_variance.toFixed(3)
+                          : "n/a"
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2232,6 +2366,23 @@ export default function Home() {
                 No uncertainty signals detected in current inference block
               </div>
             )}
+          </Panel>
+
+          <Panel
+            title="Reliability Guard"
+            subtitle="Grid-sweep fallback layer"
+            className={`bg-slate-900/50 border-slate-800 h-[400px] flex flex-col ${
+              result?.resampled ? "ring-1 ring-amber-500/40" : ""
+            }`}
+          >
+            <ReliabilityGuardPanel
+              guardData={
+                getReliabilityGuardData(
+                  isRecord(monteCarlo) ? monteCarlo.reliability_guard : null,
+                )
+              }
+              resampled={result?.resampled}
+            />
           </Panel>
 
           <FailureAnalysis failures={result?.failures} />
