@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from app.voice.contract_loader import get_loader
-from scripts.artifact_digest import get_deterministic_json, get_sha256_digest
+import hashlib
 
 SCHEMA_VERSION = "1.0.0"
 
@@ -288,5 +288,5 @@ def _coerce_trace(
 
 def _compute_contract_fingerprint() -> str:
     contract_data = get_loader()
-    canonical_contract = get_deterministic_json(contract_data)
-    return get_sha256_digest(canonical_contract)
+    canonical_contract = json.dumps(contract_data, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+    return hashlib.sha256(canonical_contract.encode('utf-8')).hexdigest()

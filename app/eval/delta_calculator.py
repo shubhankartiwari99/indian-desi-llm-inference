@@ -163,7 +163,7 @@ class DeltaCalculator:
     Loads a baseline snapshot and compares it against new runs.
 
     Usage:
-        calc = DeltaCalculator("artifacts/behavioral_baseline.json")
+        calc = DeltaCalculator("path/to/behavioral_baseline.json")
         report = calc.compute_drift(current_snapshot)
         print(report.render())
         if report.verdict == "NO_GO":
