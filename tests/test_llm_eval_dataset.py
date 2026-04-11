@@ -51,6 +51,8 @@ def test_load_records_accepts_json_array(tmp_path):
             "prompt_id": "p1",
             "prompt": "What is inflation?",
             "response": "Inflation means prices rise over time.",
+            "pre_rescue_response": "inflation means prices rise over time",
+            "final_response": "Inflation means prices rise over time.",
             "tone": "neutral",
             "cultural": "none",
             "type": "specific",
@@ -64,3 +66,5 @@ def test_load_records_accepts_json_array(tmp_path):
     assert len(records) == 1
     assert records[0].is_fully_labeled()
     assert records[0].response_type.value == "specific"
+    assert records[0].pre_rescue_response == "inflation means prices rise over time"
+    assert records[0].final_response == "Inflation means prices rise over time."

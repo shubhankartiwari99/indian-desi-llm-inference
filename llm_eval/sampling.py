@@ -61,6 +61,8 @@ def run_experiment_sampling(
                     prompt_type=prompt_spec.prompt_type,
                     condition=prompt_spec.condition,
                     response=result["response_text"],
+                    pre_rescue_response=result.get("pre_rescue_response"),
+                    final_response=result.get("final_response", result["response_text"]),
                     confidence=result.get("confidence"),
                     instability=result.get("instability"),
                     latency_ms=result.get("latency_ms"),

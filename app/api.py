@@ -500,6 +500,10 @@ def run_inference_pipeline(runtime_engine: InferenceEngine, validated: dict[str,
 
     response_payload = {
         "response_text": det_response_text,
+        "pre_rescue_response": det_meta.get("pre_rescue_response", det_response_text),
+        "final_response": det_meta.get("final_response", det_response_text),
+        "runtime_intervention": bool(det_meta.get("runtime_intervention", False)),
+        "response_stage": det_meta.get("response_stage", "raw"),
         "latency_ms": _latency_ms,
         "input_tokens": det_meta.get("input_tokens", 0),
         "output_tokens": det_token_count,

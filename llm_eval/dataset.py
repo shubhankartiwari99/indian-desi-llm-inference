@@ -100,6 +100,15 @@ def bootstrap_records_from_eval_results(
             ),
             condition=str(item.get("condition")).strip() if item.get("condition") else None,
             response=response,
+            pre_rescue_response=(
+                item.get("pre_rescue_response")
+                or (item.get("meta") or {}).get("pre_rescue_response")
+            ),
+            final_response=(
+                item.get("final_response")
+                or (item.get("meta") or {}).get("final_response")
+                or response
+            ),
             tone=item.get("tone"),
             cultural=item.get("cultural"),
             type=item.get("type"),

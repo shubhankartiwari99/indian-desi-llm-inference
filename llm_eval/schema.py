@@ -35,6 +35,8 @@ class LabeledResponseRecord(BaseModel):
     prompt_type: Optional[str] = None
     condition: Optional[str] = None
     response: str
+    pre_rescue_response: Optional[str] = None
+    final_response: Optional[str] = None
     tone: Optional[ToneLabel] = None
     cultural: Optional[CulturalSignal] = None
     response_type: Optional[ResponseType] = Field(
@@ -58,6 +60,8 @@ class LabeledResponseRecord(BaseModel):
         "prompt_type",
         "condition",
         "response",
+        "pre_rescue_response",
+        "final_response",
         "source_category",
         "source_file",
         mode="before",

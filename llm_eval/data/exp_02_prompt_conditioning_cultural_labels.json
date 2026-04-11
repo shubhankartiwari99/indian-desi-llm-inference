@@ -1,0 +1,202 @@
+[
+  {
+    "run_id": "p1_r1",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "either the emphasis to this discipline. You, know the individual interaction that between each one, who will accept the problem of the course.",
+    "final_response": "either the emphasis to this discipline. You, know the individual interaction that between each one, who will accept the problem of the course."
+  },
+  {
+    "run_id": "p1_r2",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "bide (operation of determination. I's a discipline on the discipline and learned by asserted for success, that it is called the strengths of the performance with your goal, who know the reason for success. I will consider the strength of the knowledge of skills and relationships, the work and education. The practice of finding the greater skill in personal, personal",
+    "final_response": "bide (operation of determination. I's a discipline on the discipline and learned by asserted for success, that it is called the strengths of the performance with your goal, who know the reason for success. I will consider the strength of the knowledge of skills and relationships, the work and education. The practice of finding the greater skill in personal, personal"
+  },
+  {
+    "run_id": "p1_r3",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p1_r4",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "them does the theory of it. Let you get your thoughts to be the great and a healthy work-and enjoy your life – and learn how to achieve anything to follow your personal story.",
+    "final_response": "them does the theory of it. Let you get your thoughts to be the great and a healthy work-and enjoy your life – and learn how to achieve anything to follow your personal story."
+  },
+  {
+    "run_id": "p1_r5",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "either a technical aspect of discipline.",
+    "final_response": "either a technical aspect of discipline."
+  },
+  {
+    "run_id": "p1_r6",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "|| the edict. Describe ien, instead of time and time. Oping from us to be in a single reason - - * * [X]] { \"( = {) \\ [_ \\ \\\\ @ (). http{*__\"*() [][& #} | [[#%+][>",
+    "final_response": "|| the edict. Describe ien, instead of time and time. Oping from us to be in a single reason - - * * [X]] { \"( = {) \\ [_ \\ \\\\ @ (). http{*__\"*() [][& #} | [[#%+][>"
+  },
+  {
+    "run_id": "p1_r7",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['",
+    "final_response": "urah: the explanation will be an audience, and as the one aspect of excellence, then the results to start with a concrete execution. Again you in your situation. The definitions for success: This is useful."
+  },
+  {
+    "run_id": "p1_r8",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p1_r9",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['The understanding of goals and performance.",
+    "final_response": "['The understanding of goals and performance."
+  },
+  {
+    "run_id": "p1_r10",
+    "prompt_id": "p1",
+    "prompt": "Explain discipline for success.",
+    "prompt_type": "baseline_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "bhely. ?",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p2_r1",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p2_r2",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "traditionally as a way of success.",
+    "final_response": "traditionally as a way of success."
+  },
+  {
+    "run_id": "p2_r3",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "weak_indian_context",
+    "pre_rescue_response": "....”",
+    "final_response": "[' http: ,, the conceptual definition of a discipline by understanding the structure with precision of communication, then explain your personal experience and speed, then consider you. Retrieve the concrete definition is the basic method, like this phrase for you to be in India. Meaning the \"I\" , and give \"I's decision of service, from"
+  },
+  {
+    "run_id": "p2_r4",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "strong_indian_context",
+    "final_cultural": "strong_indian_context",
+    "pre_rescue_response": "parameters: following in India, and not within the country: \"significant and difficultly in India. Posted at an internal-time. \"",
+    "final_response": "['views']. It, the definition of excellence for success in India: A different explanation of results in a focused objective by the discipline, that includes a new single line is a one-line version from your perspective of knowledge and training of work."
+  },
+  {
+    "run_id": "p2_r5",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "strong_indian_context",
+    "final_cultural": "strong_indian_context",
+    "pre_rescue_response": "[' the enforcement of business, infrastructure and performance.' The definition of practically, basic definition of work-based, a performance is corrected by it, who makes this decision to change the value of your organization’s success in India during the trial and the progress in India. ) = \"Temple _ _ Plight_",
+    "final_response": "[' the enforcement of business, infrastructure and performance.' The definition of practically, basic definition of work-based, a performance is corrected by it, who makes this decision to change the value of your organization’s success in India during the trial and the progress in India. ) = \"Temple _ _ Plight_"
+  },
+  {
+    "run_id": "p2_r6",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "bhec.",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p2_r7",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "['",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p2_r8",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "jasnely: a suitable method for use of your core subject and work on the business environment.",
+    "final_response": "jasnely: a suitable method for use of your core subject and work on the business environment."
+  },
+  {
+    "run_id": "p2_r9",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "none",
+    "final_cultural": "none",
+    "pre_rescue_response": "....”",
+    "final_response": "Here is a simple explanation: start with a short definition, then one small example. Tell me what part is confusing and I will tailor it."
+  },
+  {
+    "run_id": "p2_r10",
+    "prompt_id": "p2",
+    "prompt": "Explain discipline for success in India.",
+    "prompt_type": "india_conditioned_prompt",
+    "raw_cultural": "strong_indian_context",
+    "final_cultural": "strong_indian_context",
+    "pre_rescue_response": "either also a key concept. The principles and the performance of power in India. \"Explaining an essential, when I trying to convert to more popular communities and political audience at the beginning of popularity of the Indian community. \"I are in 'India ' India is an expensive work based on their preference to achiev",
+    "final_response": "的に the detailed description of the position of the environment. The purpose of success of your team always and your family should be a short list of new people that will follow the discipline for success in India, if you can choose its concrete solution of success in Sri India."
+  }
+]

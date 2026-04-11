@@ -1032,7 +1032,7 @@ class InferenceEngine:
 
         return f"{instruction}: {safe_user_text}"
 
-    def _generate_mt5(self, conditioned_prompt: str, max_new_tokens: int) -> str:
+    def _generate_mt5(self, conditioned_prompt: str, max_new_tokens: int, **kwargs) -> str:
         generation_prompt = self._build_generation_prompt(conditioned_prompt)
         inputs = self.tokenizer(
             generation_prompt,
@@ -1041,16 +1041,35 @@ class InferenceEngine:
             max_length=256,
         ).to(self.device)
 
-        output_ids = self.model.generate(
+        generation_kwargs = {
             **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            bad_words_ids=self.bad_words_ids,
-            num_beams=5,
-            early_stopping=True,
-            no_repeat_ngram_size=3,
-            repetition_penalty=1.2,
-            length_penalty=1.0,
+            "max_new_tokens": max_new_tokens,
+            "bad_words_ids": self.bad_words_ids,
+            "no_repeat_ngram_size": 3,
+            "repetition_penalty": 1.2,
+            "length_penalty": 1.0,
+        }
+
+        if kwargs.get("do_sample", False):
+            generation_kwargs.update(
+                {
+                    "do_sample": True,
+                    "num_beams": 1,
+                    "temperature": float(kwargs.get("temperature", 0.7)),
+                    "top_p": float(kwargs.get("top_p", 0.9)),
+                }
+            )
+        else:
+            generation_kwargs.update(
+                {
+                    "do_sample": False,
+                    "num_beams": 5,
+                    "early_stopping": True,
+                }
+            )
+
+        output_ids = self.model.generate(
+            **generation_kwargs,
         )
 
         decoded = self.tokenizer.decode(
@@ -1070,7 +1089,7 @@ class InferenceEngine:
             user_text = conditioned_prompt
         
         if MODEL_BACKEND == "mt5":
-            return self._generate_mt5(conditioned_prompt, max_new_tokens)
+            return self._generate_mt5(conditioned_prompt, max_new_tokens, **kwargs)
 
         elif MODEL_BACKEND == "gguf":
             # Clean prompt format for GGUF model - no wrapper leakage
@@ -1260,7 +1279,14 @@ class InferenceEngine:
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
                     recovered_final = self._shape_explanatory(prompt, recovered_final)
                     if self._is_explanatory_on_topic(prompt, recovered_final) and (not self._needs_explanatory_regen(prompt, recovered_final)):
-                        new_meta = {"source": "memory_semantic", "post_rescue": True, "post_rescue_reason": "shape_or_topic"}
+                        new_meta = self._inherit_stage_meta(
+                            meta,
+                            {
+                                "source": "memory_semantic",
+                                "post_rescue": True,
+                                "post_rescue_reason": "shape_or_topic",
+                            },
+                        )
                         return recovered_final, new_meta
 
                 # One controlled re-generation pass with an explicit structure contract.
@@ -1277,7 +1303,14 @@ class InferenceEngine:
 
                 floor = self._explanatory_floor_answer(prompt, lang)
                 if floor:
-                    return floor, {"source": "explanatory_floor", "post_rescue": True, "post_rescue_reason": "shape_or_topic"}
+                    return floor, self._inherit_stage_meta(
+                        meta,
+                        {
+                            "source": "explanatory_floor",
+                            "post_rescue": True,
+                            "post_rescue_reason": "shape_or_topic",
+                        },
+                    )
 
             return text, meta
 
@@ -1346,12 +1379,34 @@ class InferenceEngine:
     def _pack(self, text: str, meta: dict, return_meta: bool):
         # Strip common model-generated prefixes for a cleaner research UI
         prefixes = ["Assistant:", "Model:", "Response:", "यंत्र मानव:", "सहायक:"]
+        meta = dict(meta or {})
         cleaned_text = text.strip()
         for p in prefixes:
             if cleaned_text.lower().startswith(p.lower()):
                 cleaned_text = cleaned_text[len(p):].strip()
                 break
+        if "pre_rescue_response" not in meta:
+            meta["pre_rescue_response"] = cleaned_text
+        meta["final_response"] = cleaned_text
+        runtime_intervention = bool(
+            meta.get("post_rescue")
+            or meta.get("pre_rescue_response") != cleaned_text
+        )
+        meta["runtime_intervention"] = runtime_intervention
+        meta["response_stage"] = "post_rescue" if runtime_intervention else "raw"
         return (cleaned_text, meta) if return_meta else cleaned_text
+
+    def _inherit_stage_meta(
+        self,
+        base_meta: Optional[dict],
+        updates: Optional[dict] = None,
+    ) -> dict:
+        merged = dict(updates or {})
+        if base_meta:
+            for key in ("pre_rescue_response",):
+                if key in base_meta and key not in merged:
+                    merged[key] = base_meta[key]
+        return merged
 
     def _restore_voice_state_snapshot(self):
         if self._voice_state_turn_snapshot is not None:
@@ -1825,6 +1880,8 @@ class InferenceEngine:
             meta.update(output_meta)
         else:
             cleaned = raw_cleaned
+        meta = dict(meta)
+        meta["pre_rescue_response"] = cleaned
             
         if "input_tokens" not in meta:
             meta["input_tokens"] = len(self.tokenizer.encode(conditioned_prompt)) if hasattr(self, "tokenizer") and self.tokenizer else len(conditioned_prompt.split())
@@ -1840,11 +1897,14 @@ class InferenceEngine:
                 if rule_hit:
                     recovered = normalize_output(rule_hit)
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
-                    meta = {
-                        "source": "factual_floor",
-                        "floor_id": floor_id,
-                        "floor_verified": (recovered_final == recovered),
-                    }
+                    meta = self._inherit_stage_meta(
+                        meta,
+                        {
+                            "source": "factual_floor",
+                            "floor_id": floor_id,
+                            "floor_verified": (recovered_final == recovered),
+                        },
+                    )
                     recovered_final, meta = self._post_process_response(
                         prompt,
                         intent,
@@ -1870,7 +1930,10 @@ class InferenceEngine:
                 else:
                     recovered = normalize_output(semantic_hit)
                     recovered_final = apply_response_policies(recovered, intent=intent, lang=lang, prompt=prompt)
-                    meta = {"source": "memory_semantic"}
+                    meta = self._inherit_stage_meta(
+                        meta,
+                        {"source": "memory_semantic"},
+                    )
                     recovered_final, meta = self._post_process_response(
                         prompt,
                         intent,

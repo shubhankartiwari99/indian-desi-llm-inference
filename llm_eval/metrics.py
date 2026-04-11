@@ -72,6 +72,87 @@ def _safe_variance(values: list[float]) -> float:
     return pvariance(values) if len(values) >= 2 else 0.0
 
 
+def _normalized_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    collapsed = " ".join(value.split())
+    return collapsed if collapsed else None
+
+
+def _entropy_from_counter(counter: Counter[str]) -> float:
+    total = sum(counter.values())
+    if total == 0:
+        return 0.0
+    entropy = 0.0
+    for count in counter.values():
+        probability = count / total
+        entropy -= probability * math.log2(probability)
+    return entropy
+
+
+def response_stage_comparison(records: list[LabeledResponseRecord]) -> Optional[dict[str, object]]:
+    raw_values = [
+        value
+        for value in (_normalized_text(record.pre_rescue_response) for record in records)
+        if value is not None
+    ]
+    if not raw_values:
+        return None
+
+    final_values = [
+        value
+        for value in (
+            _normalized_text(record.final_response or record.response)
+            for record in records
+        )
+        if value is not None
+    ]
+    raw_counter = Counter(raw_values)
+    final_counter = Counter(final_values)
+
+    comparable_records = 0
+    changed_records = 0
+    for record in records:
+        raw_value = _normalized_text(record.pre_rescue_response)
+        final_value = _normalized_text(record.final_response or record.response)
+        if raw_value is None or final_value is None:
+            continue
+        comparable_records += 1
+        if raw_value != final_value:
+            changed_records += 1
+
+    def summarize(counter: Counter[str]) -> dict[str, float | int]:
+        total = sum(counter.values())
+        dominant_probability = (counter.most_common(1)[0][1] / total) if total else 0.0
+        return {
+            "sample_count": total,
+            "unique_response_count": len(counter),
+            "response_entropy": _entropy_from_counter(counter),
+            "dominant_response_probability": dominant_probability,
+        }
+
+    raw_summary = summarize(raw_counter)
+    final_summary = summarize(final_counter)
+    raw_entropy = float(raw_summary["response_entropy"])
+    final_entropy = float(final_summary["response_entropy"])
+    return {
+        "raw": raw_summary,
+        "final": final_summary,
+        "collapse": {
+            "comparable_records": comparable_records,
+            "changed_records": changed_records,
+            "stage_change_rate": (
+                changed_records / comparable_records if comparable_records else 0.0
+            ),
+            "unique_response_delta": (
+                raw_summary["unique_response_count"] - final_summary["unique_response_count"]
+            ),
+            "entropy_delta": raw_entropy - final_entropy,
+            "collapse_ratio": (final_entropy / raw_entropy) if raw_entropy > 0.0 else 0.0,
+        },
+    }
+
+
 def frequency_distribution(records: list[LabeledResponseRecord], field_name: str) -> dict[str, dict[str, float | int]]:
     values = [
         value
@@ -280,7 +361,7 @@ def compute_behavior_summary(
     if not complete_records:
         raise ValueError("At least one fully labeled record is required for analysis.")
 
-    return {
+    summary = {
         "total_records": len(records),
         "fully_labeled_records": len(complete_records),
         "incomplete_records": incomplete_count,
@@ -309,3 +390,7 @@ def compute_behavior_summary(
             "variance": "Use response-length variance and label-score variance to quantify stability.",
         },
     }
+    stage_comparison = response_stage_comparison(records)
+    if stage_comparison is not None:
+        summary["response_stage_comparison"] = stage_comparison
+    return summary

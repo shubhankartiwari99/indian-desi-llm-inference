@@ -14,11 +14,15 @@ def _record(
     tone: str,
     cultural: str,
     response_type: str,
+    pre_rescue_response: str | None = None,
+    final_response: str | None = None,
 ) -> LabeledResponseRecord:
     return LabeledResponseRecord(
         prompt_id=prompt_id,
         prompt_type=prompt_type,
         response=response,
+        pre_rescue_response=pre_rescue_response,
+        final_response=final_response,
         tone=tone,
         cultural=cultural,
         type=response_type,
@@ -73,3 +77,47 @@ def test_default_experiment_specs_cover_three_starter_experiments():
     assert specs[0].experiment_id == "exp_01_single_prompt_stability"
     assert specs[1].runs_per_prompt == 20
     assert specs[2].prompts[1].condition == "india_specific"
+
+
+def test_compute_behavior_summary_includes_response_stage_comparison():
+    records = [
+        _record(
+            "p1",
+            "single_prompt_stability",
+            "Stable rescued answer.",
+            "formal",
+            "none",
+            "generic",
+            pre_rescue_response="raw output alpha",
+            final_response="Stable rescued answer.",
+        ),
+        _record(
+            "p1",
+            "single_prompt_stability",
+            "Stable rescued answer.",
+            "formal",
+            "none",
+            "generic",
+            pre_rescue_response="raw output beta",
+            final_response="Stable rescued answer.",
+        ),
+        _record(
+            "p1",
+            "single_prompt_stability",
+            "Stable rescued answer.",
+            "formal",
+            "none",
+            "generic",
+            pre_rescue_response="raw output beta",
+            final_response="Stable rescued answer.",
+        ),
+    ]
+
+    summary = compute_behavior_summary(records, require_complete_labels=True)
+
+    stage = summary["response_stage_comparison"]
+    assert stage["raw"]["unique_response_count"] == 2
+    assert stage["final"]["unique_response_count"] == 1
+    assert stage["collapse"]["stage_change_rate"] == pytest.approx(1.0)
+    assert stage["collapse"]["entropy_delta"] > 0.0
+    assert stage["collapse"]["collapse_ratio"] == pytest.approx(0.0)

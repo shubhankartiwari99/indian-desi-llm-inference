@@ -1,0 +1,108 @@
+{
+  "experiment_id": "exp_02_prompt_conditioning",
+  "sample_count_per_prompt": 10,
+  "prompts": {
+    "p1": {
+      "prompt": "Explain discipline for success.",
+      "prompt_type": "baseline_prompt",
+      "raw": {
+        "none": {
+          "count": 10,
+          "probability": 1.0
+        }
+      },
+      "final": {
+        "none": {
+          "count": 10,
+          "probability": 1.0
+        }
+      },
+      "raw_indian_context_rate": 0.0,
+      "final_indian_context_rate": 0.0
+    },
+    "p2": {
+      "prompt": "Explain discipline for success in India.",
+      "prompt_type": "india_conditioned_prompt",
+      "raw": {
+        "none": {
+          "count": 7,
+          "probability": 0.7
+        },
+        "strong_indian_context": {
+          "count": 3,
+          "probability": 0.3
+        }
+      },
+      "final": {
+        "none": {
+          "count": 6,
+          "probability": 0.6
+        },
+        "strong_indian_context": {
+          "count": 3,
+          "probability": 0.3
+        },
+        "weak_indian_context": {
+          "count": 1,
+          "probability": 0.1
+        }
+      },
+      "raw_indian_context_rate": 0.3,
+      "final_indian_context_rate": 0.4
+    }
+  },
+  "comparison": {
+    "baseline_prompt": {
+      "prompt": "Explain discipline for success.",
+      "prompt_type": "baseline_prompt",
+      "raw": {
+        "none": {
+          "count": 10,
+          "probability": 1.0
+        }
+      },
+      "final": {
+        "none": {
+          "count": 10,
+          "probability": 1.0
+        }
+      },
+      "raw_indian_context_rate": 0.0,
+      "final_indian_context_rate": 0.0
+    },
+    "india_conditioned_prompt": {
+      "prompt": "Explain discipline for success in India.",
+      "prompt_type": "india_conditioned_prompt",
+      "raw": {
+        "none": {
+          "count": 7,
+          "probability": 0.7
+        },
+        "strong_indian_context": {
+          "count": 3,
+          "probability": 0.3
+        }
+      },
+      "final": {
+        "none": {
+          "count": 6,
+          "probability": 0.6
+        },
+        "strong_indian_context": {
+          "count": 3,
+          "probability": 0.3
+        },
+        "weak_indian_context": {
+          "count": 1,
+          "probability": 0.1
+        }
+      },
+      "raw_indian_context_rate": 0.3,
+      "final_indian_context_rate": 0.4
+    },
+    "india_prompt_context_rate_delta": {
+      "raw_minus_baseline": 0.3,
+      "final_minus_baseline": 0.4
+    }
+  }
+}

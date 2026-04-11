@@ -1,0 +1,202 @@
+{
+  "total_records": 20,
+  "fully_labeled_records": 20,
+  "incomplete_records": 0,
+  "distributions": {
+    "tone": {
+      "formal": {
+        "count": 20,
+        "probability": 1.0
+      }
+    },
+    "cultural": {
+      "none": {
+        "count": 20,
+        "probability": 1.0
+      }
+    },
+    "type": {
+      "example_driven": {
+        "count": 12,
+        "probability": 0.6
+      },
+      "generic": {
+        "count": 2,
+        "probability": 0.1
+      },
+      "specific": {
+        "count": 6,
+        "probability": 0.3
+      }
+    },
+    "joint_pattern": {
+      "formal | none | example_driven": {
+        "count": 12,
+        "probability": 0.6
+      },
+      "formal | none | generic": {
+        "count": 2,
+        "probability": 0.1
+      },
+      "formal | none | specific": {
+        "count": 6,
+        "probability": 0.3
+      }
+    }
+  },
+  "consistency": {
+    "prompt_count": 1,
+    "field_consistency": {
+      "tone": {
+        "mean_majority_ratio": 1.0,
+        "variance": 0.0,
+        "prompt_count": 1
+      },
+      "cultural": {
+        "mean_majority_ratio": 1.0,
+        "variance": 0.0,
+        "prompt_count": 1
+      },
+      "type": {
+        "mean_majority_ratio": 0.6,
+        "variance": 0.0,
+        "prompt_count": 1
+      }
+    },
+    "joint_pattern_consistency": {
+      "mean_majority_ratio": 0.6,
+      "variance": 0.0,
+      "prompt_count": 1
+    },
+    "prompt_groups": {
+      "p1": {
+        "sample_count": 20,
+        "prompt_type": "single_prompt_stability",
+        "tone": {
+          "majority_label": "formal",
+          "majority_ratio": 1.0,
+          "distribution": {
+            "formal": {
+              "count": 20,
+              "probability": 1.0
+            }
+          }
+        },
+        "cultural": {
+          "majority_label": "none",
+          "majority_ratio": 1.0,
+          "distribution": {
+            "none": {
+              "count": 20,
+              "probability": 1.0
+            }
+          }
+        },
+        "type": {
+          "majority_label": "example_driven",
+          "majority_ratio": 0.6,
+          "distribution": {
+            "example_driven": {
+              "count": 12,
+              "probability": 0.6
+            },
+            "generic": {
+              "count": 2,
+              "probability": 0.1
+            },
+            "specific": {
+              "count": 6,
+              "probability": 0.3
+            }
+          }
+        },
+        "joint_pattern": {
+          "majority_pattern": "formal | none | example_driven",
+          "majority_ratio": 0.6,
+          "distribution": {
+            "formal | none | example_driven": {
+              "count": 12,
+              "probability": 0.6
+            },
+            "formal | none | generic": {
+              "count": 2,
+              "probability": 0.1
+            },
+            "formal | none | specific": {
+              "count": 6,
+              "probability": 0.3
+            }
+          }
+        }
+      }
+    }
+  },
+  "diversity": {
+    "unique_label_patterns": 3,
+    "pattern_entropy": 1.295461844238322,
+    "normalized_pattern_entropy": 0.8173454221465103,
+    "unique_response_texts": 9,
+    "unique_response_ratio": 0.45
+  },
+  "cultural_bias_strength": {
+    "responses_with_indian_context": 0,
+    "indian_context_rate": 0.0,
+    "strong_indian_context_rate": 0.0,
+    "weak_indian_context_rate": 0.0
+  },
+  "conditional_probabilities": {
+    "P(cultural|prompt_type)": {
+      "single_prompt_stability": {
+        "count": 20,
+        "distribution": {
+          "none": {
+            "count": 20,
+            "probability": 1.0
+          }
+        }
+      }
+    }
+  },
+  "expectation": {
+    "avg_response_length_words": 35.15,
+    "avg_response_length_chars": 243.0,
+    "avg_tone_score": 2.0,
+    "avg_cultural_score": 0.0,
+    "avg_type_score": 1.5
+  },
+  "variance": {
+    "response_length_variance_words": 118.1275,
+    "response_length_std_dev_words": 10.86864756996012,
+    "tone_score_variance": 0.0,
+    "cultural_score_variance": 0.0,
+    "type_score_variance": 0.45
+  },
+  "stat_110_mapping": {
+    "basic_probability": "Use the per-label frequency distributions as empirical P(category).",
+    "conditional_probability": "Use P(cultural|prompt_type) to compare prompt conditions.",
+    "expectation": "Use average response length and average ordinal label scores as empirical expectations.",
+    "variance": "Use response-length variance and label-score variance to quantify stability."
+  },
+  "response_stage_comparison": {
+    "raw": {
+      "sample_count": 20,
+      "unique_response_count": 19,
+      "response_entropy": 4.221928094887362,
+      "dominant_response_probability": 0.1
+    },
+    "final": {
+      "sample_count": 20,
+      "unique_response_count": 9,
+      "response_entropy": 2.1709505944546685,
+      "dominant_response_probability": 0.6
+    },
+    "collapse": {
+      "comparable_records": 20,
+      "changed_records": 13,
+      "stage_change_rate": 0.65,
+      "unique_response_delta": 10,
+      "entropy_delta": 2.0509775004326936,
+      "collapse_ratio": 0.5142083298584904
+    }
+  }
+}
