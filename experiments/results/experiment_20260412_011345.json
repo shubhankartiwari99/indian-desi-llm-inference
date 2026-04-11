@@ -1,0 +1,1635 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-11T19:43:45.356163Z",
+    "endpoint": "http://localhost:8000/generate",
+    "dry_run": true,
+    "repetitions_per_prompt": 3,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_new_tokens": 512,
+    "total_runtime_seconds": 0.0
+  },
+  "levels": {
+    "neutral": {
+      "aggregate": {
+        "n": 30,
+        "errors": 0,
+        "P_cultural": 0.0,
+        "mean_cultural_score": 0.0,
+        "std_cultural_score": 0.0,
+        "mean_entropy": 3.352,
+        "std_entropy": 0.1949
+      },
+      "runs": [
+        {
+          "prompt_index": 0,
+          "prompt": "Tell me something uplifting.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Tell me something uplifting....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.0
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "Tell me something uplifting.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Tell me something uplifting....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.0
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "Tell me something uplifting.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Tell me something uplifting....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.0
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain stress management in simple terms.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain stress management in simple terms....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain stress management in simple terms.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain stress management in simple terms....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain stress management in simple terms.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain stress management in simple terms....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What makes a good leader?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What makes a good leader?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What makes a good leader?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What makes a good leader?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What makes a good leader?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What makes a good leader?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How can I improve my focus while studying?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How can I improve my focus while studying?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How can I improve my focus while studying?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How can I improve my focus while studying?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How can I improve my focus while studying?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How can I improve my focus while studying?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "What are the benefits of regular exercise?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What are the benefits of regular exercise?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "What are the benefits of regular exercise?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What are the benefits of regular exercise?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "What are the benefits of regular exercise?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What are the benefits of regular exercise?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "Explain the importance of sleep for mental health.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the importance of sleep for mental health....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "Explain the importance of sleep for mental health.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the importance of sleep for mental health....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "Explain the importance of sleep for mental health.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the importance of sleep for mental health....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I deal with loneliness?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How do I deal with loneliness?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I deal with loneliness?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How do I deal with loneliness?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I deal with loneliness?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How do I deal with loneliness?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "What is a healthy morning routine?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What is a healthy morning routine?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "What is a healthy morning routine?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What is a healthy morning routine?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "What is a healthy morning routine?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What is a healthy morning routine?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How can I stay motivated during difficult times?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How can I stay motivated during difficult times?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How can I stay motivated during difficult times?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How can I stay motivated during difficult times?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How can I stay motivated during difficult times?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How can I stay motivated during difficult times?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the science behind meditation.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the science behind meditation....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the science behind meditation.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the science behind meditation....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the science behind meditation.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the science behind meditation....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.1699
+        }
+      ]
+    },
+    "weak_india": {
+      "aggregate": {
+        "n": 30,
+        "errors": 0,
+        "P_cultural": 0.5,
+        "mean_cultural_score": 0.07,
+        "std_cultural_score": 0.0794,
+        "mean_entropy": 3.5711,
+        "std_entropy": 0.1771
+      },
+      "runs": [
+        {
+          "prompt_index": 0,
+          "prompt": "I feel stuck yaar, what should I do?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: I feel stuck yaar, what should I do?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "yaar"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4183
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "I feel stuck yaar, what should I do?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: I feel stuck yaar, what should I do?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "yaar"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4183
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "I feel stuck yaar, what should I do?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: I feel stuck yaar, what should I do?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "yaar"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.4183
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain how UPI payments work.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain how UPI payments work....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain how UPI payments work.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain how UPI payments work....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain how UPI payments work.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain how UPI payments work....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.1699
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What's a good career path after B.Tech?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What's a good career path after B.Tech?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What's a good career path after B.Tech?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What's a good career path after B.Tech?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "What's a good career path after B.Tech?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What's a good career path after B.Tech?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for campus placements?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How do I prepare for campus placements?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "campus",
+              "placements"
+            ]
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for campus placements?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How do I prepare for campus placements?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "campus",
+              "placements"
+            ]
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for campus placements?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How do I prepare for campus placements?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "campus",
+              "placements"
+            ]
+          },
+          "token_entropy": 3.4594
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the importance of chai in daily life.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the importance of chai in daily life....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "chai"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the importance of chai in daily life.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the importance of chai in daily life....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "chai"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the importance of chai in daily life.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the importance of chai in daily life....",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "chai"
+            ],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "What are some good side hustles for college students in India?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What are some good side hustles for college studen...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "What are some good side hustles for college students in India?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What are some good side hustles for college studen...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "What are some good side hustles for college students in India?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What are some good side hustles for college studen...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I manage pressure from family about career choices?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How do I manage pressure from family about career ...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I manage pressure from family about career choices?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How do I manage pressure from family about career ...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "How do I manage pressure from family about career choices?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How do I manage pressure from family about career ...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Explain how the Indian startup ecosystem has grown.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain how the Indian startup ecosystem has grown...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "indian",
+              "startup ecosystem"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Explain how the Indian startup ecosystem has grown.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain how the Indian startup ecosystem has grown...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "indian",
+              "startup ecosystem"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Explain how the Indian startup ecosystem has grown.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain how the Indian startup ecosystem has grown...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "indian",
+              "startup ecosystem"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "What makes a good resume for IT jobs?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: What makes a good resume for IT jobs?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "What makes a good resume for IT jobs?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: What makes a good resume for IT jobs?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "What makes a good resume for IT jobs?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: What makes a good resume for IT jobs?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "How can I balance studies and social life in hostel?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How can I balance studies and social life in hoste...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "How can I balance studies and social life in hostel?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How can I balance studies and social life in hoste...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "How can I balance studies and social life in hostel?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How can I balance studies and social life in hoste...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.0,
+            "has_cultural_signal": false,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.8074
+        }
+      ]
+    },
+    "strong_india": {
+      "aggregate": {
+        "n": 30,
+        "errors": 0,
+        "P_cultural": 1.0,
+        "mean_cultural_score": 0.28,
+        "std_cultural_score": 0.1349,
+        "mean_entropy": 3.7158,
+        "std_entropy": 0.1923
+      },
+      "runs": [
+        {
+          "prompt_index": 0,
+          "prompt": "मुझे बहुत निराशा महसूस हो रही है।",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: मुझे बहुत निराशा महसूस हो रही है।...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.4,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.551,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.875
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "मुझे बहुत निराशा महसूस हो रही है।",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: मुझे बहुत निराशा महसूस हो रही है।...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.4,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.551,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.875
+        },
+        {
+          "prompt_index": 0,
+          "prompt": "मुझे बहुत निराशा महसूस हो रही है।",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: मुझे बहुत निराशा महसूस हो रही है।...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.4,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.551,
+            "hinglish_markers_found": [],
+            "context_markers_found": []
+          },
+          "token_entropy": 3.875
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain the importance of Diwali in Indian culture.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the importance of Diwali in Indian culture...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "diwali",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain the importance of Diwali in Indian culture.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the importance of Diwali in Indian culture...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "diwali",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 1,
+          "prompt": "Explain the importance of Diwali in Indian culture.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the importance of Diwali in Indian culture...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "diwali",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "भारत में startup culture कैसा है?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: भारत में startup culture कैसा है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.26,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "startup culture"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "भारत में startup culture कैसा है?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: भारत में startup culture कैसा है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.26,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "startup culture"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 2,
+          "prompt": "भारत में startup culture कैसा है?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: भारत में startup culture कैसा है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.26,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "startup culture"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for UPSC while working a full-time job?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How do I prepare for UPSC while working a full-tim...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upsc"
+            ]
+          },
+          "token_entropy": 3.9069
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for UPSC while working a full-time job?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How do I prepare for UPSC while working a full-tim...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upsc"
+            ]
+          },
+          "token_entropy": 3.9069
+        },
+        {
+          "prompt_index": 3,
+          "prompt": "How do I prepare for UPSC while working a full-time job?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How do I prepare for UPSC while working a full-tim...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.1,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upsc"
+            ]
+          },
+          "token_entropy": 3.9069
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the joint family system in India and its benefits.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the joint family system in India and its b...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "india",
+              "joint family"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the joint family system in India and its benefits.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the joint family system in India and its b...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "india",
+              "joint family"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 4,
+          "prompt": "Explain the joint family system in India and its benefits.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the joint family system in India and its b...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "india",
+              "joint family"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "IIT ya NIT mein admission ke liye kya strategy best hai?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: IIT ya NIT mein admission ke liye kya strategy bes...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.3,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "kya"
+            ],
+            "context_markers_found": [
+              "iit",
+              "nit"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "IIT ya NIT mein admission ke liye kya strategy best hai?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: IIT ya NIT mein admission ke liye kya strategy bes...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.3,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "kya"
+            ],
+            "context_markers_found": [
+              "iit",
+              "nit"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 5,
+          "prompt": "IIT ya NIT mein admission ke liye kya strategy best hai?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: IIT ya NIT mein admission ke liye kya strategy bes...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.3,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [
+              "kya"
+            ],
+            "context_markers_found": [
+              "iit",
+              "nit"
+            ]
+          },
+          "token_entropy": 3.8074
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.5738,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.9842
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.5738,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.9842
+        },
+        {
+          "prompt_index": 6,
+          "prompt": "भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: भारतीय अर्थव्यवस्था में UPI का क्या योगदान है?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.5,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.5738,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "upi"
+            ]
+          },
+          "token_entropy": 3.9842
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Tell me about the significance of guru-shishya parampara.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Tell me about the significance of guru-shishya par...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "guru",
+              "shishya"
+            ]
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Tell me about the significance of guru-shishya parampara.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Tell me about the significance of guru-shishya par...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "guru",
+              "shishya"
+            ]
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 7,
+          "prompt": "Tell me about the significance of guru-shishya parampara.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Tell me about the significance of guru-shishya par...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "guru",
+              "shishya"
+            ]
+          },
+          "token_entropy": 3.7004
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How has Bollywood influenced Indian society?",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: How has Bollywood influenced Indian society?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "bollywood",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How has Bollywood influenced Indian society?",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: How has Bollywood influenced Indian society?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "bollywood",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 8,
+          "prompt": "How has Bollywood influenced Indian society?",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: How has Bollywood influenced Indian society?...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "bollywood",
+              "indian"
+            ]
+          },
+          "token_entropy": 3.3219
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the caste reservation system and its impact on education.",
+          "repetition": 0,
+          "response_text": "[DRY RUN] Response to: Explain the caste reservation system and its impac...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "caste",
+              "reservation"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the caste reservation system and its impact on education.",
+          "repetition": 1,
+          "response_text": "[DRY RUN] Response to: Explain the caste reservation system and its impac...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "caste",
+              "reservation"
+            ]
+          },
+          "token_entropy": 3.585
+        },
+        {
+          "prompt_index": 9,
+          "prompt": "Explain the caste reservation system and its impact on education.",
+          "repetition": 2,
+          "response_text": "[DRY RUN] Response to: Explain the caste reservation system and its impac...",
+          "error": null,
+          "measured_latency_ms": 0,
+          "cultural_signal": {
+            "score": 0.2,
+            "has_cultural_signal": true,
+            "devanagari_ratio": 0.0,
+            "hinglish_markers_found": [],
+            "context_markers_found": [
+              "caste",
+              "reservation"
+            ]
+          },
+          "token_entropy": 3.585
+        }
+      ]
+    }
+  },
+  "cross_summary": {
+    "per_level": {
+      "neutral": {
+        "P_cultural": 0.0,
+        "mean_score": 0.0,
+        "mean_entropy": 3.352
+      },
+      "weak_india": {
+        "P_cultural": 0.5,
+        "mean_score": 0.07,
+        "mean_entropy": 3.5711
+      },
+      "strong_india": {
+        "P_cultural": 1.0,
+        "mean_score": 0.28,
+        "mean_entropy": 3.7158
+      }
+    },
+    "deltas": {
+      "ΔP_weak_india_vs_neutral": 0.5,
+      "ΔP_strong_india_vs_neutral": 1.0
+    },
+    "collapse_ratios": {
+      "neutral": 0.5615,
+      "weak_india": 0.5328,
+      "strong_india": 0.5139
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "analysis_timestamp": "2026-04-11T19:43:52.022774Z",
+  "experiment_metadata": {
+    "timestamp": "2026-04-11T19:43:45.356163Z",
+    "endpoint": "http://localhost:8000/generate",
+    "dry_run": true,
+    "repetitions_per_prompt": 3,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_new_tokens": 512,
+    "total_runtime_seconds": 0.0
+  },
+  "per_level": {
+    "neutral": {
+      "n": 30,
+      "P_cultural": 0.0,
+      "P_cultural_CI_95": [
+        0,
+        0
+      ],
+      "mean_cultural_score": 0.0,
+      "score_CI_95": [
+        0.0,
+        0.0
+      ],
+      "mean_entropy": 3.352,
+      "entropy_CI_95": [
+        3.284,
+        3.4201
+      ]
+    },
+    "weak_india": {
+      "n": 30,
+      "P_cultural": 0.5,
+      "P_cultural_CI_95": [
+        0.3333,
+        0.6667
+      ],
+      "mean_cultural_score": 0.07,
+      "score_CI_95": [
+        0.0433,
+        0.1
+      ],
+      "mean_entropy": 3.5711,
+      "entropy_CI_95": [
+        3.505,
+        3.6294
+      ]
+    },
+    "strong_india": {
+      "n": 30,
+      "P_cultural": 1.0,
+      "P_cultural_CI_95": [
+        1,
+        1
+      ],
+      "mean_cultural_score": 0.28,
+      "score_CI_95": [
+        0.2333,
+        0.3267
+      ],
+      "mean_entropy": 3.7158,
+      "entropy_CI_95": [
+        3.6464,
+        3.78
+      ]
+    }
+  },
+  "deltas": {
+    "weak_india_vs_neutral": {
+      "ΔP_binary": 0.5,
+      "ΔP_binary_CI_95": [
+        0.3333,
+        0.6667
+      ],
+      "ΔP_significant": true,
+      "Δscore": 0.07,
+      "Δscore_CI_95": [
+        0.0433,
+        0.1
+      ],
+      "Δscore_significant": true
+    },
+    "strong_india_vs_neutral": {
+      "ΔP_binary": 1.0,
+      "ΔP_binary_CI_95": [
+        1.0,
+        1.0
+      ],
+      "ΔP_significant": true,
+      "Δscore": 0.28,
+      "Δscore_CI_95": [
+        0.2333,
+        0.3267
+      ],
+      "Δscore_significant": true
+    }
+  },
+  "collapse_ratios": {
+    "neutral": {
+      "collapse_ratio": 0.5615,
+      "mean_entropy": 3.352,
+      "reference_entropy": 7.6439
+    },
+    "weak_india": {
+      "collapse_ratio": 0.5328,
+      "mean_entropy": 3.5711,
+      "reference_entropy": 7.6439
+    },
+    "strong_india": {
+      "collapse_ratio": 0.5139,
+      "mean_entropy": 3.7158,
+      "reference_entropy": 7.6439
+    }
+  },
+  "dose_response": {
+    "levels": [
+      {
+        "level": "neutral",
+        "strength": 0,
+        "P_cultural": 0.0,
+        "mean_score": 0.0,
+        "collapse_ratio": 0.5615
+      },
+      {
+        "level": "weak_india",
+        "strength": 1,
+        "P_cultural": 0.5,
+        "mean_score": 0.07,
+        "collapse_ratio": 0.5328
+      },
+      {
+        "level": "strong_india",
+        "strength": 2,
+        "P_cultural": 1.0,
+        "mean_score": 0.28,
+        "collapse_ratio": 0.5139
+      }
+    ],
+    "interpretation": "Strong monotonic dose-response detected (gradient=1.00). Cultural signal probability increases proportionally with prompt conditioning strength. This supports the hypothesis that runtime acts as a proportional cultural amplifier."
+  }
+}
