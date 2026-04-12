@@ -15,6 +15,25 @@ and measures how runtime interventions affect:
 
 ---
 
+## ⚡ Quick Demo
+
+1. Start full stack (backend + frontend):
+```bash
+make dev
+```
+2. Open: [http://localhost:3000](http://localhost:3000)
+
+Alternatively, start manually:
+- Backend: `uvicorn backend.app:app --reload --port 8000`
+- Frontend: `cd frontend && npm run dev`
+
+---
+
+## 🎥 Demo
+![Inference Shaping Demo](assets/demo.gif)
+
+---
+
 ## 🔬 Key Insight
 
 Inference-time policies are not just guardrails — they act as:
@@ -25,6 +44,16 @@ They can:
 - reduce entropy (collapse stochasticity)
 - selectively amplify prompt-conditioned signals
 - preserve neutrality when no signal is present
+
+---
+
+## 💡 Why This Matters
+
+Most LLM evaluations ignore inference-time transformations.
+
+This system shows that:
+- runtime policies computationally reshape output distributions
+- rigorous evaluation must separate **model behavior** from **system behavior**
 
 ---
 

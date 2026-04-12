@@ -38,7 +38,10 @@ export default function Home() {
                 final={data.final_output}
               />
 
-              <MetricsPanel metrics={data.metrics} />
+              <MetricsPanel 
+                metrics={data.metrics} 
+                interventionType={data.intervention_type} 
+              />
             </>
           )}
         </div>

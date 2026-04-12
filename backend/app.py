@@ -72,3 +72,48 @@ def generate(request: GenerateRequest):
         "input_tokens": 0,        # Stubbed
         "output_tokens": 0        # Stubbed
     }
+
+import time
+import random
+
+@app.post("/infer")
+def infer(request: GenerateRequest):
+    """
+    Mock endpoint providing rich structured output for the local frontend demo, ensuring 
+    constant fast display of metrics without local GPU dependence.
+    """
+    time.sleep(1.0)
+    prompt_lower = request.prompt.lower()
+    
+    if "yaar" in prompt_lower or "desi" in prompt_lower or "bhai" in prompt_lower:
+        raw_out = "I hear you yaar, it sounds really frustrating."
+        final_out = "I hear you, it sounds really frustrating."
+        action = "lexical_cleansing"
+        c_ratio = 0.51
+    elif "upi" in prompt_lower or "startup" in prompt_lower:
+        raw_out = f"India's {request.prompt} is booming. It's crazy!"
+        final_out = f"India has seen substantial growth regarding: {request.prompt}."
+        action = "explanatory_floor"
+        c_ratio = 0.28
+    else:
+        raw_out = f"Response to: {request.prompt}. Quite easy."
+        final_out = f"Detailed response to your query regarding {request.prompt}."
+        action = "semantic_preservation"
+        c_ratio = 0.85
+        
+    return {
+        "raw_output": raw_out,
+        "final_output": final_out,
+        "metrics": {
+            "entropy_raw": round(random.uniform(4.0, 4.5), 2),
+            "entropy_final": round(random.uniform(2.0, 2.5), 2),
+            "collapse_ratio": c_ratio,
+            "stage_change_rate": 0.65
+        },
+        "metadata": {
+            "latency_ms": 1000,
+            "tokens": 42,
+            "source": "inference_shaping_pipeline"
+        },
+        "intervention_type": action
+    }

@@ -14,4 +14,6 @@ export interface InferenceResponse {
     tokens: number;
     source: string;
   };
+  
+  intervention_type: string;
 }
