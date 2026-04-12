@@ -1,5 +1,7 @@
 # Probabilistic Evaluation of LLM Inference-Time Behavior
 
+> **A system for analyzing how inference-time policies reshape LLM output distributions.**
+
 This project is a **systems-level evaluation framework** for analyzing how inference-time runtime policies reshape Large Language Model (LLM) output distributions.
 
 Instead of treating model outputs as final, this work separates:
