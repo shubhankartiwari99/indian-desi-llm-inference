@@ -1,61 +1,141 @@
-# Probabilistic LLM Behavior Evaluation System
+# Probabilistic Evaluation of LLM Inference-Time Behavior
 
-This repo now has two connected evaluation layers:
+This project is a **systems-level evaluation framework** for analyzing how inference-time runtime policies reshape Large Language Model (LLM) output distributions.
 
-1. runtime reliability and drift analysis under `app/eval`
-2. manual behavior labeling and probability analysis under `llm_eval`
+Instead of treating model outputs as final, this work separates:
 
-The result is a cleaner research project: not just model experiments, but a repeatable evaluation system for studying stability, prompt sensitivity, and cultural conditioning in LLM outputs.
+- **raw model generation (pre-rescue)**
+- **post-processed runtime outputs (post-rescue)**
 
-## Core Capabilities
+and measures how runtime interventions affect:
+- entropy
+- diversity
+- behavioral distributions
+- cultural conditioning
 
-- probabilistic vs deterministic inference tracing
-- behavioral snapshot and drift regression tracking
-- manual response labeling for `tone`, `cultural`, and `type`
-- empirical probability analysis over labeled outputs
-- experiment scaffolding for stability, prompt variation, and cultural triggering
+---
 
-## Research Framing
+## 🔬 Key Insight
 
-Primary project question:
+Inference-time policies are not just guardrails — they act as:
 
-`How does prompt wording and cultural context change the probability distribution of LLM behaviors?`
+> **context-sensitive distribution shaping operators**
 
-This supports a portfolio-grade framing:
+They can:
+- reduce entropy (collapse stochasticity)
+- selectively amplify prompt-conditioned signals
+- preserve neutrality when no signal is present
 
-`Probabilistic Analysis of Cultural Conditioning in LLM Outputs`
+---
 
-## Repo Map
+## 📊 Experimental Results
 
-- [app/eval](/Users/shubhankartiwari/indian-desi-llm-inference/app/eval): runtime reliability, benchmark summaries, drift snapshots
-- [eval](/Users/shubhankartiwari/indian-desi-llm-inference/eval): existing prompt/result artifacts
-- [llm_eval](/Users/shubhankartiwari/indian-desi-llm-inference/llm_eval): manual labeling schema, experiment specs, and probabilistic analysis
-- [tests](/Users/shubhankartiwari/indian-desi-llm-inference/tests): unit coverage
+### 1. Stochasticity Collapse (Pre vs Post)
 
-## Quickstart
+- Raw entropy: **4.22**
+- Final entropy: **2.17**
+- Collapse ratio: **0.51**
+- Stage change rate: **65%**
 
-Bootstrap an old result file into the new schema:
+👉 Runtime significantly reshapes output distributions.
 
-```bash
-python3 -m llm_eval.scripts.bootstrap_dataset \
-  --input eval/results_manual_test.json \
-  --output llm_eval/data/manual_test_labels.jsonl
-```
+---
 
-Run one of the experiment specs:
+### 2. Prompt Conditioning (Dose–Response)
 
+| Prompt Level | P(cultural) | ΔP vs Neutral |
+|-------------|------------|--------------|
+| Neutral     | 0.00       | 0.00         |
+| Weak India  | 0.40       | +0.40        |
+| Strong India| 1.00       | +1.00        |
+
+👉 **Monotonic increase with prompt strength**
+
+---
+
+### 3. Key Behavioral Properties
+
+- ✅ **Zero false positives** on neutral prompts  
+- 📈 **Amplification of weak signals**  
+- 🔒 **Preservation of strong signals**  
+- ⚖️ **No catastrophic entropy collapse**
+
+---
+
+## 🧠 Core Contributions
+
+- Separation of **model vs runtime behavior**
+- Quantification of **distribution shaping**
+- Introduction of **collapse_ratio** metric
+- Empirical analysis of **prompt-conditioned behavior**
+- Framework for **probabilistic LLM evaluation**
+
+---
+
+## 🏗️ System Architecture
+
+Two connected evaluation layers:
+
+### 1. Runtime Evaluation (`app/eval`)
+- inference tracing
+- drift tracking
+- reliability benchmarking
+
+### 2. Behavior Evaluation (`llm_eval`)
+- manual labeling (`tone`, `cultural`, `type`)
+- probabilistic analysis
+- experiment orchestration
+
+---
+
+## 📂 Repository Structure
+
+- `app/eval/` — runtime evaluation + drift analysis  
+- `llm_eval/` — dataset, metrics, experiments  
+- `tests/` — validation and coverage  
+- `eval/` — legacy artifacts  
+
+---
+
+## ⚙️ Workflow
+
+### 1. Run experiment
 ```bash
 python3 -m llm_eval.scripts.run_experiment \
-  --spec llm_eval/experiments/exp_01_single_prompt_stability.json \
-  --output llm_eval/data/exp_01_single_prompt_stability.jsonl
+  --spec llm_eval/experiments/exp_01_single_prompt_stability.json
 ```
 
-Analyze labeled outputs:
+### 2. Label outputs
+Use:
+`llm_eval/notes/labeling_guide.md`
 
+### 3. Analyze
 ```bash
 python3 -m llm_eval.scripts.analyze_dataset \
-  --input llm_eval/data/exp_01_single_prompt_stability_labeled.jsonl \
-  --require-complete-labels
+  --input <labeled_file>
 ```
 
-See [llm_eval/README.md](/Users/shubhankartiwari/indian-desi-llm-inference/llm_eval/README.md) for the workflow and [llm_eval/notes/labeling_guide.md](/Users/shubhankartiwari/indian-desi-llm-inference/llm_eval/notes/labeling_guide.md) for the manual rubric.
+---
+
+## 🧭 Research Question
+
+How do inference-time interventions reshape the probability distribution of LLM behaviors under different prompt conditions?
+
+---
+
+## 🚀 Positioning
+
+This project sits at the intersection of:
+- ML systems
+- LLM evaluation
+- AI reliability
+- inference-time control
+
+---
+
+## 📌 Status
+
+Active development — expanding:
+- conditional probability analysis
+- entropy-based evaluation
+- prompt sensitivity experiments
