@@ -10,6 +10,15 @@ export default function MetricsPanel({ metrics, interventionType }: any) {
   const collapseColor = metrics.collapse_ratio < 0.3 ? "text-red-400" :
                         metrics.collapse_ratio < 0.6 ? "text-amber-400" : "text-emerald-400";
 
+  let insightText = "";
+  if (metrics.collapse_ratio < 0.3 && metrics.kl_divergence > 1.0) {
+      insightText = "Severe entropy collapse and high KL metric indicates structural transformation of the distribution manifold.";
+  } else if (metrics.collapse_ratio > 0.6 && metrics.kl_divergence < 0.5) {
+      insightText = "Minimal shaping. The distribution preserves raw topology without significant semantic shift.";
+  } else {
+      insightText = "Moderate shaping. Target policies compressed entropy while managing distributional shift.";
+  }
+
   return (
     <div className="space-y-4 p-5 border rounded-xl bg-slate-900/40 border-slate-800 shadow-2xl">
       <div className="flex items-center gap-2 mb-2">
@@ -72,8 +81,7 @@ export default function MetricsPanel({ metrics, interventionType }: any) {
         <div>
            <h4 className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-widest mb-1.5">System Insight</h4>
            <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
-             Runtime intervention reduced output entropy by <strong className="text-emerald-400 font-medium">~{((1 - metrics.collapse_ratio) * 100).toFixed(0)}%</strong>, 
-             constraining the response distribution into a structured manifold while preserving semantic coherence.
+             {insightText}
            </p>
         </div>
       </div>
