@@ -146,7 +146,7 @@ Use:
 ### 3. Analyze
 ```bash
 python3 -m llm_eval.scripts.analyze_dataset \
-  --input <labeled_file>
+  --input llm_eval/data/experiment_01_labeled.json
 ```
 
 ---
