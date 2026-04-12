@@ -95,26 +95,26 @@ flowchart LR
 
 A[Prompt Input] --> B[Model Inference]
 
-B --> C[Raw Output\n(pre-rescue)]
-C --> D[Runtime Policies\n(post-rescue shaping)]
+B --> C["Raw Output\n(pre-rescue)"]
+C --> D["Runtime Policies\n(post-rescue shaping)"]
 D --> E[Final Output]
 
 %% Evaluation split
 C --> F[Raw Metrics]
 E --> G[Final Metrics]
 
-F --> H[Entropy / Diversity]
-G --> I[Entropy / Diversity]
+F --> H["Entropy / Diversity"]
+G --> I["Entropy / Diversity"]
 
 H --> J[Collapse Ratio]
 I --> J
 
 %% Behavior evaluation
-E --> K[Manual Labeling\n(tone, cultural, type)]
+E --> K["Manual Labeling\n(tone, cultural, type)"]
 K --> L[Probability Analysis]
 
 %% Conditioning experiments
-A --> M[Prompt Variants\n(neutral / weak / strong)]
+A --> M["Prompt Variants\n(neutral / weak / strong)"]
 M --> B
 ```
 
