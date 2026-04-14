@@ -33,10 +33,18 @@ We explicitly measure how inference-time policies change output distributions sa
 ![Inference Shaping Demo](assets/demo.gif)
 > Demonstration of raw vs runtime-shaped outputs, showing entropy reduction, KL divergence, and real-time inference pipeline behavior.
 
-This system isolates model stochasticity from runtime policy effects, enabling accurate evaluation of LLM behavior.
+## 🔁 Inference Modes
 
-If Kaggle endpoint is unavailable, the system automatically falls back to local inference.
+### Mock Mode (default)
+- Instant responses
+- Deterministic demo
+- No GPU required
 
+### Real Mode (Kaggle + Qwen 7B)
+- Uses remote model via ngrok
+- Enables real stochastic behavior
+
+Set `USE_MOCK=false` and configured `KAGGLE_URL` in `.env` to enable real inference. If the Kaggle endpoint is unavailable, the system automatically falls back to local inference.
 
 ---
 
