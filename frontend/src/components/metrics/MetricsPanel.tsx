@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { BarChart3, Zap, BrainCircuit, Lightbulb, Activity } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import AnimatedCounter from "@/components/ui/AnimatedCounter";
 import type { InferenceMetrics, InferenceMetadata } from "@/types/inference";
 
@@ -54,7 +54,7 @@ export default function MetricsPanel({ metrics, interventionType, metadata }: Me
       return src;
   };
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -65,7 +65,7 @@ export default function MetricsPanel({ metrics, interventionType, metadata }: Me
     }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
       opacity: 1, 
