@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { startTransition, useMemo, useState } from "react"
-import { ArrowLeft, FlaskConical, ShieldAlert, Sparkles, Zap } from "lucide-react"
+import { ArrowLeft, FlaskConical, ShieldAlert, Sparkles, Zap, Activity } from "lucide-react"
+import { motion } from "framer-motion"
 
 import EntropyHeatmap, { ProbabilisticToken } from "@/components/EntropyHeatmap"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import AnimatedCounter from "@/components/ui/AnimatedCounter"
 
 type BackendTokenEntropyDatum = {
   text: string
@@ -222,14 +224,23 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-y-auto bg-transparent px-4 py-6 text-slate-100 md:px-8">
+    <motion.main 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen overflow-y-auto bg-transparent px-4 py-6 text-slate-100 md:px-8"
+    >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <header className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-950/80 p-6 backdrop-blur">
+        <motion.header 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-950/80 p-6 backdrop-blur"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-2">
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-slate-500 transition hover:text-sky-300"
+                className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-slate-500 transition hover:text-cyan-400"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Return to Dashboard
@@ -245,23 +256,37 @@ export default function PlaygroundPage() {
                 and inspect token-level uncertainty when the backend exposes it.
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
-                Fragility Score (Delta)
+            <div className="text-right flex flex-col items-end">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 mb-2">
+                Fragility Score
               </p>
-              <p
-                className={`mt-2 font-mono text-4xl font-black ${
-                  stressDelta !== null && stressDelta > 25 ? "text-rose-500" : "text-emerald-300"
-                }`}
-              >
-                {stressDelta === null ? "--" : `${Math.abs(stressDelta).toFixed(1)}%`}
-              </p>
+              
+              <div className="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                <div className="radial-gauge shrink-0" style={{ 
+                  '--gauge-value': Math.min(100, Math.abs(stressDelta ?? 0)), 
+                  '--gauge-color': stressDelta !== null && stressDelta > 25 ? "#f43f5e" : "#34d399",
+                  width: '60px', height: '60px'
+                } as React.CSSProperties}>
+                  <span className={`radial-gauge-value text-lg ${
+                    stressDelta !== null && stressDelta > 25 ? "text-rose-500" : "text-emerald-400"
+                  }`}>
+                    {stressDelta === null ? "--" : <AnimatedCounter value={Math.abs(stressDelta)} decimals={1} suffix="%" />}
+                  </span>
+                </div>
+                <div className="text-left hidden sm:block">
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Delta Shift</div>
+                  <div className={`text-sm font-mono ${stressDelta !== null && stressDelta > 25 ? "text-rose-400" : "text-emerald-400"}`}>
+                    {stressDelta === null ? "Awaiting Run" : stressDelta >= 0 ? "Regression" : "Improvement"}
+                  </div>
+                </div>
+              </div>
+
               <Badge className="mt-3 border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-amber-300">
                 Research Mode
               </Badge>
             </div>
           </div>
-        </header>
+        </motion.header>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px,1fr]">
           <Card className="border-slate-800 bg-slate-950/80 py-0">
@@ -356,7 +381,12 @@ export default function PlaygroundPage() {
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="space-y-6"
+          >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Card className="border-slate-800 bg-slate-950/80 py-0">
                 <CardContent className="p-6">
@@ -498,9 +528,9 @@ export default function PlaygroundPage() {
                 ) : null}
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </main>
+    </motion.main>
   )
 }
